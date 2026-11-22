@@ -1,0 +1,100 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Build version (without leading v, e.g. 0.1.0)'
+        required: false
+        default: '0.1.0-dev'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Build Windows (amd64)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Resolve release metadata
+        id: meta
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            $tag = $env:GITHUB_REF_NAME
+            $version = $tag -replace '^v', ''
+            $isPrerelease = if ($version -match '-') { 'true' } else { 'false' }
+          } else {
+            $tag = ''
+            $version = $env:INPUT_VERSION
+            if ([string]::IsNullOrWhiteSpace($version)) { $version = '0.1.0-dev' }
+            $isPrerelease = 'true'
+          }
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "prerelease=$isPrerelease" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Resolved version: $version (tag=$tag, prerelease=$isPrerelease)"
+
+      - name: Build single-binary executable
+        env:
+          BUILD_VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          $releaseDir = Join-Path $PWD 'release'
+          New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null
+          $outExe = Join-Path $releaseDir 'mo-server-panel.exe'
+          .\scripts\build.ps1 -Version $env:BUILD_VERSION -Output $outExe
+
+      - name: Run Go tests
+        run: go test -v ./...
+
+      - name: Verify binary & generate SHA256SUMS
+        run: |
+          .\release\mo-server-panel.exe version
+          $hash = (Get-FileHash -Algorithm SHA256 -Path .\release\mo-server-panel.exe).Hash.ToLower()
+          "$hash  mo-server-panel.exe" | Set-Content -Path .\release\SHA256SUMS.txt -Encoding ascii
+          Get-Content .\release\SHA256SUMS.txt
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mo-server-panel-windows-amd64
+          path: |
+            release/mo-server-panel.exe
+            release/SHA256SUMS.txt
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: MoServerPanel ${{ steps.meta.outputs.tag }}
+          prerelease: ${{ steps.meta.outputs.prerelease == 'true' }}
+          generate_release_notes: true
+          files: |
+            release/mo-server-panel.exe
+            release/SHA256SUMS.txt
