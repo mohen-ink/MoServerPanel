@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import { RefreshCw, TerminalSquare } from 'lucide-react';
-import { StatusBadge } from '../components/UI';
+import { RefreshCw } from 'lucide-react';
+import { Button, PageHeader, Select, StatusBadge } from '../components/UI';
 
 export const TerminalPage: React.FC = () => {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -20,13 +20,14 @@ export const TerminalPage: React.FC = () => {
 
     const term = new XTerm({
       cursorBlink: true,
-      fontFamily: '"Cascadia Code", "JetBrains Mono", Consolas, monospace',
-      fontSize: 14,
+      fontFamily: '"JetBrains Mono", "Cascadia Code", Consolas, monospace',
+      fontSize: 13,
+      lineHeight: 1.2,
       theme: {
-        background: '#020617',
-        foreground: '#e2e8f0',
-        cursor: '#818cf8',
-        selectionBackground: 'rgba(99, 102, 241, 0.35)',
+        background: '#0b0d12',
+        foreground: '#e4e4e7',
+        cursor: '#60a5fa',
+        selectionBackground: 'rgba(96, 165, 250, 0.3)',
       },
     });
     const fitAddon = new FitAddon();
@@ -84,34 +85,44 @@ export const TerminalPage: React.FC = () => {
   }, [shell, sessionSeq]);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-5rem)] space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <TerminalSquare className="w-5 h-5 text-indigo-400" /> 网页终端
-          </h2>
-          <StatusBadge active={connected} activeText="已连接" inactiveText="已断开" />
-        </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={shell}
-            onChange={(e) => setShell(e.target.value as 'powershell' | 'cmd')}
-            className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white"
-          >
-            <option value="powershell">PowerShell</option>
-            <option value="cmd">CMD</option>
-          </select>
-          <button
-            onClick={() => setSessionSeq((n) => n + 1)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs cursor-pointer"
-          >
-            <RefreshCw className="w-3.5 h-3.5" /> 重新连接
-          </button>
-        </div>
-      </div>
+    <div className="flex flex-col h-[calc(100vh-6.5rem)]">
+      <PageHeader
+        className="mb-4"
+        title="网页终端"
+        extra={<StatusBadge active={connected} activeText="已连接" inactiveText="已断开" />}
+        actions={
+          <>
+            <Select
+              size="sm"
+              wrapperClassName="w-36"
+              value={shell}
+              onChange={(e) => setShell(e.target.value as 'powershell' | 'cmd')}
+            >
+              <option value="powershell">PowerShell</option>
+              <option value="cmd">CMD</option>
+            </Select>
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={RefreshCw}
+              onClick={() => setSessionSeq((n) => n + 1)}
+            >
+              重新连接
+            </Button>
+          </>
+        }
+      />
 
-      <div className="flex-1 rounded-2xl bg-slate-950 border border-slate-800 p-3 overflow-hidden">
-        <div ref={containerRef} className="w-full h-full" />
+      <div className="flex-1 min-h-0 flex flex-col rounded-xl border border-line overflow-hidden bg-[#0b0d12] shadow-card">
+        <div className="h-9 px-4 flex items-center gap-2 border-b border-white/10 text-xs text-zinc-400 shrink-0">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-[#febc2e]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
+          <span className="ml-2 font-mono">{shell === 'powershell' ? 'PowerShell' : 'CMD'}</span>
+        </div>
+        <div className="flex-1 min-h-0 p-3">
+          <div ref={containerRef} className="w-full h-full" />
+        </div>
       </div>
     </div>
   );

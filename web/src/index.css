@@ -1,10 +1,151 @@
 @import "tailwindcss";
 @import "@xterm/xterm/css/xterm.css";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", Consolas, "SFMono-Regular", monospace;
+  --color-canvas: var(--wsp-canvas);
+  --color-surface: var(--wsp-surface);
+  --color-surface-2: var(--wsp-surface-2);
+  --color-line: var(--wsp-line);
+  --color-line-strong: var(--wsp-line-strong);
+  --color-fg: var(--wsp-fg);
+  --color-fg-2: var(--wsp-fg-2);
+  --color-fg-3: var(--wsp-fg-3);
+  --color-brand: var(--wsp-brand);
+  --color-brand-hover: var(--wsp-brand-hover);
+  --color-brand-soft: var(--wsp-brand-soft);
+  --color-brand-fg: var(--wsp-brand-fg);
+  --color-success: var(--wsp-success);
+  --color-success-soft: var(--wsp-success-soft);
+  --color-success-fg: var(--wsp-success-fg);
+  --color-warning: var(--wsp-warning);
+  --color-warning-soft: var(--wsp-warning-soft);
+  --color-warning-fg: var(--wsp-warning-fg);
+  --color-danger: var(--wsp-danger);
+  --color-danger-soft: var(--wsp-danger-soft);
+  --color-danger-fg: var(--wsp-danger-fg);
+  --shadow-card: 0 1px 2px rgb(16 24 40 / 0.04), 0 1px 3px rgb(16 24 40 / 0.06);
+}
+
+:root {
+  color-scheme: light;
+  --wsp-canvas: #f5f6f8;
+  --wsp-surface: #ffffff;
+  --wsp-surface-2: #f7f8fa;
+  --wsp-line: #e6e8eb;
+  --wsp-line-strong: #d4d7dc;
+  --wsp-fg: #18181b;
+  --wsp-fg-2: #52525b;
+  --wsp-fg-3: #9ca3af;
+  --wsp-brand: #2563eb;
+  --wsp-brand-hover: #1d4ed8;
+  --wsp-brand-soft: #eff4ff;
+  --wsp-brand-fg: #1d4ed8;
+  --wsp-success: #16a34a;
+  --wsp-success-soft: #effaf3;
+  --wsp-success-fg: #15803d;
+  --wsp-warning: #d97706;
+  --wsp-warning-soft: #fff8eb;
+  --wsp-warning-fg: #b45309;
+  --wsp-danger: #dc2626;
+  --wsp-danger-soft: #fef2f2;
+  --wsp-danger-fg: #b91c1c;
+}
+
+.dark {
+  color-scheme: dark;
+  --wsp-canvas: #09090b;
+  --wsp-surface: #111113;
+  --wsp-surface-2: #18181b;
+  --wsp-line: #26262b;
+  --wsp-line-strong: #3a3a42;
+  --wsp-fg: #fafafa;
+  --wsp-fg-2: #a1a1aa;
+  --wsp-fg-3: #71717a;
+  --wsp-brand: #3b82f6;
+  --wsp-brand-hover: #2563eb;
+  --wsp-brand-soft: rgb(59 130 246 / 0.12);
+  --wsp-brand-fg: #93c5fd;
+  --wsp-success: #22c55e;
+  --wsp-success-soft: rgb(34 197 94 / 0.12);
+  --wsp-success-fg: #86efac;
+  --wsp-warning: #f59e0b;
+  --wsp-warning-soft: rgb(245 158 11 / 0.12);
+  --wsp-warning-fg: #fcd34d;
+  --wsp-danger: #ef4444;
+  --wsp-danger-soft: rgb(239 68 68 / 0.12);
+  --wsp-danger-fg: #fca5a5;
+}
+
 @layer base {
+  html,
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Roboto, sans-serif;
+    background: var(--wsp-canvas);
+    color: var(--wsp-fg);
   }
+  body {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+  ::selection {
+    background: rgb(59 130 246 / 0.25);
+  }
+}
+
+@keyframes wsp-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes wsp-zoom-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes wsp-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes wsp-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-overlay {
+  animation: wsp-fade-in 0.15s ease-out;
+}
+.animate-dialog {
+  animation: wsp-zoom-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.animate-toast {
+  animation: wsp-slide-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.animate-page {
+  animation: wsp-page-in 0.2s ease-out;
 }
 
 /* Custom sleek scrollbars */
@@ -16,9 +157,9 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.25);
+  background: var(--wsp-line-strong);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.45);
+  background: var(--wsp-fg-3);
 }

@@ -1,7 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { Key, Save, ServerCog, ShieldAlert, Unlock } from 'lucide-react';
 import { api, BanEntry, formatDate, SettingsData } from '../api/client';
-import { useToast } from '../components/UI';
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Field,
+  Input,
+  PageHeader,
+  Table,
+  TBody,
+  Td,
+  Th,
+  THead,
+  Tr,
+  useToast,
+} from '../components/UI';
 
 export const SettingsPage: React.FC = () => {
   const { showToast } = useToast();
@@ -70,134 +85,151 @@ export const SettingsPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl">
-      <div>
-        <h2 className="text-xl font-bold text-white">面板设置</h2>
-        <p className="text-xs text-slate-400 mt-0.5">管理面板监听参数、管理员密码与安全封禁列表</p>
-      </div>
+    <div className="max-w-4xl">
+      <PageHeader
+        title="面板设置"
+        description="管理面板监听参数、管理员密码与安全封禁列表"
+      />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Panel Network Settings */}
-        <form onSubmit={handleSaveSettings} className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
-            <ServerCog className="w-4 h-4 text-indigo-400" /> 面板监听与运行信息
-          </h3>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">监听地址</label>
-            <input
-              value={listenAddr}
-              onChange={(e) => setListenAddr(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">监听端口</label>
-            <input
-              type="number"
-              min={1}
-              max={65535}
-              value={port}
-              onChange={(e) => setPort(Number(e.target.value))}
-              className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white"
-            />
-          </div>
-          {settings && (
-            <div className="text-xs text-slate-400 space-y-1 pt-2 border-t border-slate-800">
-              <div>版本：v{settings.version}</div>
-              <div>数据目录：{settings.dataDir}</div>
-              <div>管理员权限：{settings.isAdmin ? '是 (Elevated)' : '否 (普通权限)'}</div>
-              <div>Windows 服务状态：{settings.serviceStatus}</div>
-            </div>
-          )}
-          <button
-            type="submit"
-            disabled={saving}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition cursor-pointer"
-          >
-            <Save className="w-4 h-4" /> 保存监听设置
-          </button>
-        </form>
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Panel Network Settings */}
+          <Card title="面板监听与运行信息" icon={ServerCog}>
+            <form onSubmit={handleSaveSettings} className="space-y-4">
+              <Field label="监听地址">
+                <Input
+                  mono
+                  value={listenAddr}
+                  onChange={(e) => setListenAddr(e.target.value)}
+                />
+              </Field>
 
-        {/* Change Admin Password */}
-        <form onSubmit={handleChangePwd} className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
-            <Key className="w-4 h-4 text-emerald-400" /> 修改管理员密码
-          </h3>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">当前密码</label>
-            <input
-              type="password"
-              required
-              value={oldPassword}
-              onChange={(e) => setOldPassword(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">新密码（至少 8 位）</label>
-            <input
-              type="password"
-              required
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white"
-            />
-          </div>
-          <button
-            type="submit"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition cursor-pointer"
-          >
-            更新密码
-          </button>
-          <p className="text-xs text-slate-500">
-            如忘记密码，可在服务器本地运行：
-            <code className="block mt-1 px-2 py-1 rounded bg-slate-950 text-slate-300">
-              win-server-panel.exe reset-password --password 新密码
-            </code>
-          </p>
-        </form>
-      </div>
+              <Field label="监听端口">
+                <Input
+                  mono
+                  type="number"
+                  min={1}
+                  max={65535}
+                  value={port}
+                  onChange={(e) => setPort(Number(e.target.value))}
+                />
+              </Field>
 
-      {/* Banned IPs */}
-      <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800">
-        <h3 className="flex items-center gap-2 text-sm font-semibold text-white mb-4">
-          <ShieldAlert className="w-4 h-4 text-rose-400" /> 防爆破临时封禁 IP 列表
-        </h3>
-        {bans.length === 0 ? (
-          <p className="text-sm text-slate-500">当前没有被封禁的 IP。</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="text-xs text-slate-400 border-b border-slate-800">
+              {settings && (
+                <dl className="grid grid-cols-[110px_1fr] gap-y-2 text-xs pt-3 border-t border-line">
+                  <dt className="text-fg-3">版本</dt>
+                  <dd className="text-fg font-mono">v{settings.version}</dd>
+
+                  <dt className="text-fg-3">数据目录</dt>
+                  <dd className="text-fg font-mono truncate" title={settings.dataDir}>
+                    {settings.dataDir}
+                  </dd>
+
+                  <dt className="text-fg-3">管理员权限</dt>
+                  <dd className="text-fg">
+                    {settings.isAdmin ? '是 (Elevated)' : '否 (普通权限)'}
+                  </dd>
+
+                  <dt className="text-fg-3">Windows 服务状态</dt>
+                  <dd className="text-fg font-mono">{settings.serviceStatus}</dd>
+                </dl>
+              )}
+
+              <div className="pt-1">
+                <Button type="submit" variant="primary" icon={Save} loading={saving}>
+                  保存监听设置
+                </Button>
+              </div>
+            </form>
+          </Card>
+
+          {/* Change Admin Password */}
+          <Card title="修改管理员密码" icon={Key}>
+            <form onSubmit={handleChangePwd} className="space-y-4">
+              <Field label="当前密码">
+                <Input
+                  type="password"
+                  required
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                />
+              </Field>
+
+              <Field label="新密码（至少 8 位）">
+                <Input
+                  type="password"
+                  required
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                />
+              </Field>
+
+              <div className="pt-1">
+                <Button type="submit" variant="primary" icon={Key}>
+                  更新密码
+                </Button>
+              </div>
+
+              <div className="text-xs text-fg-3 pt-1">
+                如忘记密码，可在服务器本地运行：
+                <code className="block mt-1.5 px-2.5 py-1.5 rounded-md bg-surface-2 border border-line text-fg font-mono">
+                  win-server-panel.exe reset-password --password 新密码
+                </code>
+              </div>
+            </form>
+          </Card>
+        </div>
+
+        {/* Banned IPs */}
+        <Card title="防爆破临时封禁 IP 列表" icon={ShieldAlert} noPadding>
+          {bans.length === 0 ? (
+            <EmptyState
+              icon={ShieldAlert}
+              title="当前没有被封禁的 IP"
+              description="连续登录失败触发防爆破限制的来源 IP 将显示在此处。"
+            />
+          ) : (
+            <Table>
+              <THead>
                 <tr>
-                  <th className="py-2 pr-4">模块</th>
-                  <th className="py-2 pr-4">IP 地址</th>
-                  <th className="py-2 pr-4">失败次数</th>
-                  <th className="py-2 pr-4">解封时间</th>
-                  <th className="py-2 text-right">操作</th>
+                  <Th>模块</Th>
+                  <Th>IP 地址</Th>
+                  <Th>失败次数</Th>
+                  <Th>解封时间</Th>
+                  <Th align="right">操作</Th>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/70">
+              </THead>
+              <TBody>
                 {bans.map((b) => (
-                  <tr key={`${b.namespace}-${b.ip}`}>
-                    <td className="py-2.5 pr-4 uppercase text-xs font-mono text-indigo-300">{b.namespace}</td>
-                    <td className="py-2.5 pr-4 font-mono text-slate-200">{b.ip}</td>
-                    <td className="py-2.5 pr-4 text-rose-300">{b.failCount}</td>
-                    <td className="py-2.5 pr-4 text-slate-400">{formatDate(b.bannedUntil)}</td>
-                    <td className="py-2.5 text-right">
-                      <button
+                  <Tr key={`${b.namespace}-${b.ip}`}>
+                    <Td>
+                      <Badge tone="brand" className="uppercase font-mono">
+                        {b.namespace}
+                      </Badge>
+                    </Td>
+                    <Td className="font-mono text-[12.5px] text-fg">{b.ip}</Td>
+                    <Td>
+                      <Badge tone="danger">{b.failCount}</Badge>
+                    </Td>
+                    <Td className="text-xs text-fg-2 tabular-nums">
+                      {formatDate(b.bannedUntil)}
+                    </Td>
+                    <Td align="right">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        icon={Unlock}
                         onClick={() => handleUnban(b.namespace, b.ip)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 cursor-pointer"
                       >
-                        <Unlock className="w-3.5 h-3.5" /> 解封
-                      </button>
-                    </td>
-                  </tr>
+                        解封
+                      </Button>
+                    </Td>
+                  </Tr>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+              </TBody>
+            </Table>
+          )}
+        </Card>
       </div>
     </div>
   );

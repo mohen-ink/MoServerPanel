@@ -4,6 +4,7 @@ import {
   Code2,
   Edit2,
   FileText,
+  Globe,
   Lock,
   Play,
   Plus,
@@ -14,7 +15,32 @@ import {
   Trash2,
 } from 'lucide-react';
 import { api, Certificate, NginxStatus, ProxySite } from '../api/client';
-import { Modal, StatusBadge, useToast } from '../components/UI';
+import {
+  Badge,
+  Button,
+  Card,
+  CodeBlock,
+  EmptyState,
+  Field,
+  IconButton,
+  Input,
+  Modal,
+  ModalFooter,
+  PageHeader,
+  Select,
+  StatusBadge,
+  Switch,
+  Table,
+  Tabs,
+  TBody,
+  Td,
+  Textarea,
+  Th,
+  THead,
+  Tr,
+  useConfirm,
+  useToast,
+} from '../components/UI';
 
 const defaultSiteForm = {
   name: '',
@@ -33,6 +59,7 @@ const defaultSiteForm = {
 
 export const NginxPage: React.FC = () => {
   const { showToast } = useToast();
+  const confirmDialog = useConfirm();
   const [status, setStatus] = useState<NginxStatus | null>(null);
   const [sites, setSites] = useState<ProxySite[]>([]);
   const [certs, setCerts] = useState<Certificate[]>([]);
@@ -144,7 +171,13 @@ export const NginxPage: React.FC = () => {
   };
 
   const handleDeleteSite = async (s: ProxySite) => {
-    if (!confirm(`确认删除反代站点「${s.name}」？`)) return;
+    const ok = await confirmDialog({
+      title: '删除反代站点',
+      description: `确认删除反代站点「${s.name}」？此操作不可撤销。`,
+      confirmText: '删除',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.deleteNginxSite(s.id);
       showToast('success', '站点已删除');
@@ -203,178 +236,183 @@ export const NginxPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-bold text-white">Nginx 反向代理</h2>
-          <p className="text-xs text-slate-400 mt-0.5">
-            内嵌托管 {status?.version || 'Nginx'} · 配置修改自动校验并在失败时回滚
-          </p>
-        </div>
-        <button
-          onClick={openCreate}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition cursor-pointer"
-        >
-          <Plus className="w-4 h-4" /> 新建反代站点
-        </button>
-      </div>
+    <div>
+      <PageHeader
+        title="Nginx 反向代理"
+        description={`内嵌托管 ${status?.version || 'Nginx'} · 配置修改自动校验并在失败时回滚`}
+        actions={
+          <Button variant="primary" icon={Plus} onClick={openCreate}>
+            新建反代站点
+          </Button>
+        }
+      />
 
-      {/* Nginx Service Control Bar */}
-      <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-4">
-          <StatusBadge active={!!status?.running} />
-          <div className="text-xs text-slate-400">
-            PID: <span className="font-mono text-slate-200">{status?.running ? status.pid : '-'}</span>
-          </div>
-          <label className="inline-flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer">
-            <input
-              type="checkbox"
+      <div className="space-y-4">
+        {/* Nginx Service Control Bar */}
+        <Card bodyClassName="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-4">
+            <StatusBadge active={!!status?.running} />
+            <div className="text-xs text-fg-2">
+              PID:{' '}
+              <span className="font-mono text-fg tabular-nums">
+                {status?.running ? status.pid : '-'}
+              </span>
+            </div>
+            <Switch
               checked={!!status?.autoStart}
               onChange={toggleAutoStart}
-              className="rounded border-slate-600"
+              label="随面板自启"
             />
-            随面板自启
-          </label>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {!status?.running ? (
-            <button
-              disabled={busyAction}
-              onClick={() => runAction('启动', api.nginxStart)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium cursor-pointer"
-            >
-              <Play className="w-3.5 h-3.5" /> 启动
-            </button>
-          ) : (
-            <>
-              <button
-                disabled={busyAction}
-                onClick={() => runAction('重载配置', api.nginxReload)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium cursor-pointer"
-              >
-                <RefreshCw className="w-3.5 h-3.5" /> 热重载
-              </button>
-              <button
-                disabled={busyAction}
-                onClick={() => runAction('重启', api.nginxRestart)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 text-xs cursor-pointer"
-              >
-                <RotateCw className="w-3.5 h-3.5" /> 重启
-              </button>
-              <button
-                disabled={busyAction}
-                onClick={() => runAction('停止', api.nginxStop)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 text-xs cursor-pointer"
-              >
-                <Square className="w-3.5 h-3.5" /> 停止
-              </button>
-            </>
-          )}
-          <button
-            disabled={busyAction}
-            onClick={() => runAction('校验配置', api.nginxTest)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs cursor-pointer"
-          >
-            <CheckCircle2 className="w-3.5 h-3.5" /> nginx -t
-          </button>
-          <button
-            onClick={() => openLogs('error')}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs cursor-pointer"
-          >
-            <FileText className="w-3.5 h-3.5" /> 日志
-          </button>
-        </div>
-      </div>
-
-      {/* Sites Table */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
-        {sites.length === 0 ? (
-          <div className="py-16 text-center text-slate-500 text-sm">
-            暂无反向代理站点，点击右上角「新建反代站点」开始配置。
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-slate-950/60 text-xs text-slate-400 border-b border-slate-800">
+
+          <div className="flex flex-wrap items-center gap-2">
+            {!status?.running ? (
+              <Button
+                size="sm"
+                variant="primary"
+                icon={Play}
+                disabled={busyAction}
+                onClick={() => runAction('启动', api.nginxStart)}
+              >
+                启动
+              </Button>
+            ) : (
+              <>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={RefreshCw}
+                  disabled={busyAction}
+                  onClick={() => runAction('重载配置', api.nginxReload)}
+                >
+                  热重载
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={RotateCw}
+                  disabled={busyAction}
+                  onClick={() => runAction('重启', api.nginxRestart)}
+                >
+                  重启
+                </Button>
+                <Button
+                  size="sm"
+                  variant="danger-outline"
+                  icon={Square}
+                  disabled={busyAction}
+                  onClick={() => runAction('停止', api.nginxStop)}
+                >
+                  停止
+                </Button>
+              </>
+            )}
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={CheckCircle2}
+              disabled={busyAction}
+              onClick={() => runAction('校验配置', api.nginxTest)}
+            >
+              nginx -t
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={FileText}
+              onClick={() => openLogs('error')}
+            >
+              日志
+            </Button>
+          </div>
+        </Card>
+
+        {/* Sites Table */}
+        <Card noPadding>
+          {sites.length === 0 ? (
+            <EmptyState
+              icon={Globe}
+              title="暂无反向代理站点"
+              description="暂无反向代理站点，点击右上角「新建反代站点」开始配置。"
+              action={
+                <Button variant="primary" icon={Plus} onClick={openCreate}>
+                  新建反代站点
+                </Button>
+              }
+            />
+          ) : (
+            <Table>
+              <THead>
                 <tr>
-                  <th className="py-3 px-4">站点名称</th>
-                  <th className="py-3 px-4">域名 / 监听端口</th>
-                  <th className="py-3 px-4">目标上游 (Upstream)</th>
-                  <th className="py-3 px-4">特性</th>
-                  <th className="py-3 px-4">状态</th>
-                  <th className="py-3 px-4 text-right">操作</th>
+                  <Th>站点名称</Th>
+                  <Th>域名 / 监听端口</Th>
+                  <Th>目标上游 (Upstream)</Th>
+                  <Th>特性</Th>
+                  <Th>状态</Th>
+                  <Th align="right">操作</Th>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/70">
+              </THead>
+              <TBody>
                 {sites.map((s) => (
-                  <tr key={s.id} className="hover:bg-slate-800/30">
-                    <td className="py-3 px-4 font-medium text-white">{s.name}</td>
-                    <td className="py-3 px-4">
-                      <div className="font-mono text-xs text-slate-200">
+                  <Tr key={s.id}>
+                    <Td className="font-medium text-fg">{s.name}</Td>
+                    <Td>
+                      <div className="font-mono text-[12.5px] text-fg">
                         {s.domains && s.domains.length > 0 ? s.domains.join(', ') : '* (任意域名)'}
                       </div>
-                      <div className="text-xs text-amber-300 font-mono mt-0.5">:{s.listenPort}</div>
-                    </td>
-                    <td className="py-3 px-4 font-mono text-xs text-sky-300">{s.upstream}</td>
-                    <td className="py-3 px-4">
+                      <div className="text-xs text-fg-2 font-mono mt-0.5">:{s.listenPort}</div>
+                    </Td>
+                    <Td className="font-mono text-[12.5px] text-fg">{s.upstream}</Td>
+                    <Td>
                       <div className="flex flex-wrap gap-1">
                         {s.ssl && (
-                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 text-[11px]">
-                            <Lock className="w-3 h-3" /> HTTPS
-                          </span>
+                          <Badge tone="success" icon={Lock}>
+                            HTTPS
+                          </Badge>
                         )}
-                        {s.webSocket && (
-                          <span className="px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 text-[11px]">
-                            WS
-                          </span>
-                        )}
-                        {s.forceHttps && (
-                          <span className="px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-300 text-[11px]">
-                            301→HTTPS
-                          </span>
-                        )}
+                        {s.webSocket && <Badge tone="brand">WS</Badge>}
+                        {s.forceHttps && <Badge tone="neutral">301→HTTPS</Badge>}
                       </div>
-                    </td>
-                    <td className="py-3 px-4">
+                    </Td>
+                    <Td>
                       <StatusBadge active={s.enabled} activeText="已启用" inactiveText="已停用" />
-                    </td>
-                    <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
-                      <button
-                        onClick={() => handleQuickAllowPort(s)}
-                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 cursor-pointer"
-                        title={`放行防火墙 ${s.listenPort} 端口`}
-                      >
-                        <ShieldPlus className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handlePreview(s)}
-                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer"
-                        title="查看生成配置"
-                      >
-                        <Code2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => openEdit(s)}
-                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer"
-                        title="编辑"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteSite(s)}
-                        className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 cursor-pointer"
-                        title="删除"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
+                    </Td>
+                    <Td align="right" className="whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1">
+                        <IconButton
+                          icon={ShieldPlus}
+                          tone="brand"
+                          size="sm"
+                          title={`放行防火墙 ${s.listenPort} 端口`}
+                          onClick={() => handleQuickAllowPort(s)}
+                        />
+                        <IconButton
+                          icon={Code2}
+                          size="sm"
+                          title="查看生成配置"
+                          onClick={() => handlePreview(s)}
+                        />
+                        <IconButton
+                          icon={Edit2}
+                          size="sm"
+                          title="编辑"
+                          onClick={() => openEdit(s)}
+                        />
+                        <IconButton
+                          icon={Trash2}
+                          tone="danger"
+                          size="sm"
+                          title="删除"
+                          onClick={() => handleDeleteSite(s)}
+                        />
+                      </div>
+                    </Td>
+                  </Tr>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+              </TBody>
+            </Table>
+          )}
+        </Card>
       </div>
 
       {/* Create/Edit Site Modal */}
@@ -386,76 +424,75 @@ export const NginxPage: React.FC = () => {
       >
         <form onSubmit={handleSaveSite} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">站点名称 *</label>
-              <input
+            <Field label="站点名称" required>
+              <Input
                 required
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 placeholder="例如：我的 API 服务"
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white"
               />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">监听端口 *</label>
-              <input
+            </Field>
+
+            <Field label="监听端口" required>
+              <Input
+                mono
                 type="number"
                 required
                 min={1}
                 max={65535}
                 value={form.listenPort}
                 onChange={(e) => setForm({ ...form, listenPort: Number(e.target.value) })}
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white font-mono"
               />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-xs text-slate-400 mb-1">
-                绑定域名（多个用逗号或空格分隔，留空表示按端口匹配任意域名）
-              </label>
-              <input
+            </Field>
+
+            <Field
+              label="绑定域名（多个用逗号或空格分隔，留空表示按端口匹配任意域名）"
+              className="md:col-span-2"
+            >
+              <Input
+                mono
                 value={form.domainsText}
                 onChange={(e) => setForm({ ...form, domainsText: e.target.value })}
                 placeholder="app.example.com, www.example.com"
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white font-mono"
               />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-xs text-slate-400 mb-1">反向代理目标地址 (Upstream) *</label>
-              <input
+            </Field>
+
+            <Field label="反向代理目标地址 (Upstream)" required className="md:col-span-2">
+              <Input
+                mono
                 required
                 value={form.upstream}
                 onChange={(e) => setForm({ ...form, upstream: e.target.value })}
                 placeholder="http://127.0.0.1:3000"
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white font-mono"
               />
-            </div>
+            </Field>
           </div>
 
           {/* HTTPS Section */}
-          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-            <label className="flex items-center gap-2 text-sm font-medium text-white cursor-pointer">
-              <input
-                type="checkbox"
-                checked={form.ssl}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    ssl: e.target.checked,
-                    listenPort: e.target.checked && form.listenPort === 80 ? 443 : !e.target.checked && form.listenPort === 443 ? 80 : form.listenPort,
-                  })
-                }
-              />
-              启用 HTTPS (SSL/TLS)
-            </label>
+          <div className="p-4 rounded-lg bg-surface-2/50 border border-line space-y-3">
+            <Switch
+              checked={form.ssl}
+              onChange={(checked) =>
+                setForm({
+                  ...form,
+                  ssl: checked,
+                  listenPort:
+                    checked && form.listenPort === 80
+                      ? 443
+                      : !checked && form.listenPort === 443
+                        ? 80
+                        : form.listenPort,
+                })
+              }
+              label="启用 HTTPS (SSL/TLS)"
+            />
             {form.ssl && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                <div className="md:col-span-2">
-                  <label className="block text-xs text-slate-400 mb-1">选择 SSL 证书 *</label>
-                  <select
+              <div className="space-y-3 pt-1">
+                <Field label="选择 SSL 证书" required>
+                  <Select
                     required
                     value={form.certId}
                     onChange={(e) => setForm({ ...form, certId: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white"
                   >
                     <option value="">-- 请先在「SSL 证书」页添加证书 --</option>
                     {certs.map((c) => (
@@ -463,120 +500,98 @@ export const NginxPage: React.FC = () => {
                         {c.name} ({c.domains.join(', ')})
                       </option>
                     ))}
-                  </select>
-                </div>
-                <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={form.forceHttps}
-                    onChange={(e) => setForm({ ...form, forceHttps: e.target.checked })}
-                  />
-                  同时监听 80 端口并强制 301 跳转 HTTPS
-                </label>
+                  </Select>
+                </Field>
+
+                <Switch
+                  checked={form.forceHttps}
+                  onChange={(v) => setForm({ ...form, forceHttps: v })}
+                  label="同时监听 80 端口并强制 301 跳转 HTTPS"
+                />
               </div>
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
-              <input
-                type="checkbox"
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="rounded-lg border border-line p-3">
+              <Switch
                 checked={form.webSocket}
-                onChange={(e) => setForm({ ...form, webSocket: e.target.checked })}
+                onChange={(v) => setForm({ ...form, webSocket: v })}
+                label="支持 WebSocket 升级"
               />
-              支持 WebSocket 升级
-            </label>
-            <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
-              <input
-                type="checkbox"
+            </div>
+            <div className="rounded-lg border border-line p-3">
+              <Switch
                 checked={form.realIpHeaders}
-                onChange={(e) => setForm({ ...form, realIpHeaders: e.target.checked })}
+                onChange={(v) => setForm({ ...form, realIpHeaders: v })}
+                label="透传 Host / 真实 IP 请求头"
               />
-              透传 Host / 真实 IP 请求头
-            </label>
-            <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
-              <input
-                type="checkbox"
+            </div>
+            <div className="rounded-lg border border-line p-3">
+              <Switch
                 checked={form.enabled}
-                onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
-              />
-              启用该站点
-            </label>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">最大请求体大小 (client_max_body_size)</label>
-              <input
-                value={form.clientMaxBodySize}
-                onChange={(e) => setForm({ ...form, clientMaxBodySize: e.target.value })}
-                placeholder="50m"
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white font-mono"
+                onChange={(v) => setForm({ ...form, enabled: v })}
+                label="启用该站点"
               />
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">高级：附加 Nginx server 块指令（可选）</label>
-            <textarea
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Field label="最大请求体大小 (client_max_body_size)">
+              <Input
+                mono
+                value={form.clientMaxBodySize}
+                onChange={(e) => setForm({ ...form, clientMaxBodySize: e.target.value })}
+                placeholder="50m"
+              />
+            </Field>
+          </div>
+
+          <Field label="高级：附加 Nginx server 块指令（可选）">
+            <Textarea
+              mono
               rows={3}
               value={form.customConfig}
               onChange={(e) => setForm({ ...form, customConfig: e.target.value })}
               placeholder="# 例如：add_header X-Frame-Options SAMEORIGIN;"
-              className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-slate-200 font-mono"
             />
-          </div>
+          </Field>
 
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
-            <button
-              type="button"
-              onClick={() => setModalOpen(false)}
-              className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-sm cursor-pointer"
-            >
+          <ModalFooter>
+            <Button variant="secondary" onClick={() => setModalOpen(false)}>
               取消
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium cursor-pointer"
-            >
+            </Button>
+            <Button type="submit" variant="primary" loading={saving}>
               {saving ? '校验并保存...' : '保存并重载 Nginx'}
-            </button>
-          </div>
+            </Button>
+          </ModalFooter>
         </form>
       </Modal>
 
       {/* Preview Config Modal */}
-      <Modal open={previewConf !== null} wide title="生成的 Nginx 站点配置" onClose={() => setPreviewConf(null)}>
-        <pre className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs text-emerald-300 font-mono overflow-x-auto whitespace-pre">
-          {previewConf}
-        </pre>
+      <Modal
+        open={previewConf !== null}
+        wide
+        title="生成的 Nginx 站点配置"
+        onClose={() => setPreviewConf(null)}
+      >
+        <CodeBlock>{previewConf}</CodeBlock>
       </Modal>
 
       {/* Logs Modal */}
       <Modal open={logsModal} wide title="Nginx 运行日志" onClose={() => setLogsModal(false)}>
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => openLogs('error')}
-              className={`px-3 py-1.5 rounded-lg text-xs cursor-pointer ${
-                logType === 'error' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'
-              }`}
-            >
-              error.log
-            </button>
-            <button
-              onClick={() => openLogs('access')}
-              className={`px-3 py-1.5 rounded-lg text-xs cursor-pointer ${
-                logType === 'access' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'
-              }`}
-            >
-              access.log
-            </button>
-          </div>
-          <pre className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 font-mono max-h-[55vh] overflow-auto whitespace-pre-wrap">
+        <div className="space-y-4">
+          <Tabs
+            value={logType}
+            onChange={(k) => openLogs(k as 'access' | 'error')}
+            items={[
+              { key: 'error', label: 'error.log' },
+              { key: 'access', label: 'access.log' },
+            ]}
+          />
+          <CodeBlock wrap maxHeight="55vh">
             {logContent}
-          </pre>
+          </CodeBlock>
         </div>
       </Modal>
     </div>

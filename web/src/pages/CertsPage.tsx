@@ -1,10 +1,34 @@
 import React, { useEffect, useState } from 'react';
 import { KeyRound, RefreshCw, Sparkles, Trash2, Upload } from 'lucide-react';
 import { api, Certificate, formatDate } from '../api/client';
-import { Modal, useToast } from '../components/UI';
+import {
+  Badge,
+  Button,
+  Card,
+  cn,
+  EmptyState,
+  Field,
+  IconButton,
+  Input,
+  Modal,
+  ModalFooter,
+  PageHeader,
+  Select,
+  Switch,
+  Table,
+  TBody,
+  Td,
+  Textarea,
+  Th,
+  THead,
+  Tr,
+  useConfirm,
+  useToast,
+} from '../components/UI';
 
 export const CertsPage: React.FC = () => {
   const { showToast } = useToast();
+  const confirmDialog = useConfirm();
   const [certs, setCerts] = useState<Certificate[]>([]);
   const [manualOpen, setManualOpen] = useState(false);
   const [acmeOpen, setAcmeOpen] = useState(false);
@@ -101,7 +125,13 @@ export const CertsPage: React.FC = () => {
   };
 
   const handleDelete = async (c: Certificate) => {
-    if (!confirm(`确认删除证书「${c.name}」？`)) return;
+    const ok = await confirmDialog({
+      title: '删除 SSL 证书',
+      description: `确认删除证书「${c.name}」？此操作不可撤销。`,
+      confirmText: '删除',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.deleteCert(c.id);
       showToast('success', '证书已删除');
@@ -114,290 +144,279 @@ export const CertsPage: React.FC = () => {
   const daysLeft = (iso: string) => Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000);
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-bold text-white">SSL 证书管理</h2>
-          <p className="text-xs text-slate-400 mt-0.5">
-            支持手动导入 PEM 证书或 Let’s Encrypt 自动签发（到期前 30 天自动续期）
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setManualOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm transition cursor-pointer"
-          >
-            <Upload className="w-4 h-4" /> 手动上传证书
-          </button>
-          <button
-            onClick={() => setAcmeOpen(true)}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition cursor-pointer"
-          >
-            <Sparkles className="w-4 h-4" /> 申请免费证书 (ACME)
-          </button>
-        </div>
-      </div>
+    <div>
+      <PageHeader
+        title="SSL 证书管理"
+        description="支持手动导入 PEM 证书或 Let’s Encrypt 自动签发（到期前 30 天自动续期）"
+        actions={
+          <>
+            <Button variant="secondary" icon={Upload} onClick={() => setManualOpen(true)}>
+              手动上传证书
+            </Button>
+            <Button variant="primary" icon={Sparkles} onClick={() => setAcmeOpen(true)}>
+              申请免费证书 (ACME)
+            </Button>
+          </>
+        }
+      />
 
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+      <Card noPadding>
         {certs.length === 0 ? (
-          <div className="py-16 text-center text-slate-500 text-sm">
-            暂无 SSL 证书，点击右上角上传已有证书或申请 Let’s Encrypt 免费证书。
-          </div>
+          <EmptyState
+            icon={KeyRound}
+            title="暂无 SSL 证书"
+            description="暂无 SSL 证书，点击右上角上传已有证书或申请 Let’s Encrypt 免费证书。"
+            action={
+              <Button variant="primary" icon={Sparkles} onClick={() => setAcmeOpen(true)}>
+                申请免费证书 (ACME)
+              </Button>
+            }
+          />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-slate-950/60 text-xs text-slate-400 border-b border-slate-800">
-                <tr>
-                  <th className="py-3 px-4">证书名称</th>
-                  <th className="py-3 px-4">覆盖域名</th>
-                  <th className="py-3 px-4">来源</th>
-                  <th className="py-3 px-4">颁发机构</th>
-                  <th className="py-3 px-4">到期时间</th>
-                  <th className="py-3 px-4 text-right">操作</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/70">
-                {certs.map((c) => {
-                  const left = daysLeft(c.notAfter);
-                  return (
-                    <tr key={c.id} className="hover:bg-slate-800/30">
-                      <td className="py-3 px-4 font-medium text-white">
-                        <div className="flex items-center gap-2">
-                          <KeyRound className="w-4 h-4 text-violet-400" />
-                          <span>{c.name}</span>
-                        </div>
-                        {c.lastError && (
-                          <div className="text-xs text-rose-400 mt-1 max-w-xs truncate" title={c.lastError}>
-                            上次续期失败: {c.lastError}
-                          </div>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 font-mono text-xs text-slate-200">{c.domains.join(', ')}</td>
-                      <td className="py-3 px-4">
-                        {c.source === 'acme' ? (
-                          <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 text-xs">
-                            ACME ({c.acmeChallenge})
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-xs">手动导入</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-xs text-slate-400">{c.issuer || '-'}</td>
-                      <td className="py-3 px-4 text-xs">
-                        <div className="text-slate-200">{formatDate(c.notAfter)}</div>
-                        <span
-                          className={`inline-block mt-0.5 px-1.5 py-0.5 rounded text-[11px] ${
-                            left <= 7
-                              ? 'bg-rose-500/15 text-rose-300'
-                              : left <= 30
-                              ? 'bg-amber-500/15 text-amber-300'
-                              : 'bg-emerald-500/15 text-emerald-300'
-                          }`}
+          <Table>
+            <THead>
+              <tr>
+                <Th>证书名称</Th>
+                <Th>覆盖域名</Th>
+                <Th>来源</Th>
+                <Th>颁发机构</Th>
+                <Th>到期时间</Th>
+                <Th align="right">操作</Th>
+              </tr>
+            </THead>
+            <TBody>
+              {certs.map((c) => {
+                const left = daysLeft(c.notAfter);
+                return (
+                  <Tr key={c.id}>
+                    <Td>
+                      <div className="flex items-center gap-2">
+                        <KeyRound className="w-4 h-4 text-brand shrink-0" />
+                        <span className="font-medium text-fg">{c.name}</span>
+                      </div>
+                      {c.lastError && (
+                        <div
+                          className="text-xs text-danger-fg mt-1 max-w-xs truncate"
+                          title={c.lastError}
                         >
+                          上次续期失败: {c.lastError}
+                        </div>
+                      )}
+                    </Td>
+                    <Td className="font-mono text-[12.5px] text-fg">{c.domains.join(', ')}</Td>
+                    <Td>
+                      {c.source === 'acme' ? (
+                        <Badge tone="success">ACME ({c.acmeChallenge})</Badge>
+                      ) : (
+                        <Badge tone="neutral">手动导入</Badge>
+                      )}
+                    </Td>
+                    <Td className="text-xs text-fg-2">{c.issuer || '-'}</Td>
+                    <Td>
+                      <div className="text-xs text-fg tabular-nums">{formatDate(c.notAfter)}</div>
+                      <div className="mt-1">
+                        <Badge tone={left <= 7 ? 'danger' : left <= 30 ? 'warning' : 'success'}>
                           {left > 0 ? `剩余 ${left} 天` : '已过期'}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                        </Badge>
+                      </div>
+                    </Td>
+                    <Td align="right" className="whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1.5">
                         {c.source === 'acme' && (
-                          <button
+                          <Button
+                            size="sm"
+                            variant="secondary"
                             disabled={renewingId === c.id}
                             onClick={() => handleRenew(c)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 cursor-pointer"
                           >
-                            <RefreshCw className={`w-3.5 h-3.5 ${renewingId === c.id ? 'animate-spin' : ''}`} /> 续期
-                          </button>
+                            <RefreshCw
+                              className={cn(
+                                'w-3.5 h-3.5',
+                                renewingId === c.id && 'animate-spin'
+                              )}
+                            />
+                            续期
+                          </Button>
                         )}
-                        <button
-                          onClick={() => handleDelete(c)}
-                          className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 cursor-pointer"
+                        <IconButton
+                          icon={Trash2}
+                          tone="danger"
+                          size="sm"
                           title="删除"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                          onClick={() => handleDelete(c)}
+                        />
+                      </div>
+                    </Td>
+                  </Tr>
+                );
+              })}
+            </TBody>
+          </Table>
         )}
-      </div>
+      </Card>
 
       {/* Upload Manual PEM Modal */}
-      <Modal open={manualOpen} wide title="手动导入 PEM 证书" onClose={() => setManualOpen(false)}>
+      <Modal
+        open={manualOpen}
+        wide
+        title="手动导入 PEM 证书"
+        onClose={() => setManualOpen(false)}
+      >
         <form onSubmit={handleUploadManual} className="space-y-4">
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">证书备注名称</label>
-            <input
+          <Field label="证书备注名称">
+            <Input
               value={manualForm.name}
               onChange={(e) => setManualForm({ ...manualForm, name: e.target.value })}
               placeholder="留空则自动使用证书主域名"
-              className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white"
             />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">证书内容 (Fullchain PEM) *</label>
-            <textarea
+          </Field>
+
+          <Field label="证书内容 (Fullchain PEM)" required>
+            <Textarea
+              mono
               required
               rows={5}
               value={manualForm.certPem}
               onChange={(e) => setManualForm({ ...manualForm, certPem: e.target.value })}
               placeholder="-----BEGIN CERTIFICATE-----"
-              className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-emerald-300 font-mono"
             />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">私钥内容 (Private Key PEM) *</label>
-            <textarea
+          </Field>
+
+          <Field label="私钥内容 (Private Key PEM)" required>
+            <Textarea
+              mono
               required
               rows={5}
               value={manualForm.keyPem}
               onChange={(e) => setManualForm({ ...manualForm, keyPem: e.target.value })}
               placeholder="-----BEGIN PRIVATE KEY-----"
-              className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-amber-300 font-mono"
             />
-          </div>
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
-            <button
-              type="button"
-              onClick={() => setManualOpen(false)}
-              className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-sm cursor-pointer"
-            >
+          </Field>
+
+          <ModalFooter>
+            <Button variant="secondary" onClick={() => setManualOpen(false)}>
               取消
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium cursor-pointer"
-            >
+            </Button>
+            <Button type="submit" variant="primary" loading={submitting}>
               {submitting ? '正在校验保存...' : '保存证书'}
-            </button>
-          </div>
+            </Button>
+          </ModalFooter>
         </form>
       </Modal>
 
       {/* ACME Let's Encrypt Modal */}
-      <Modal open={acmeOpen} wide title="申请 Let's Encrypt 免费证书 (ACME)" onClose={() => setAcmeOpen(false)}>
+      <Modal
+        open={acmeOpen}
+        wide
+        title="申请 Let's Encrypt 免费证书 (ACME)"
+        onClose={() => setAcmeOpen(false)}
+      >
         <form onSubmit={handleIssueACME} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">证书名称</label>
-              <input
+            <Field label="证书名称">
+              <Input
                 value={acmeForm.name}
                 onChange={(e) => setAcmeForm({ ...acmeForm, name: e.target.value })}
                 placeholder="留空默认使用第一个域名"
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white"
               />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">联系邮箱 *</label>
-              <input
+            </Field>
+
+            <Field label="联系邮箱" required>
+              <Input
                 type="email"
                 required
                 value={acmeForm.email}
                 onChange={(e) => setAcmeForm({ ...acmeForm, email: e.target.value })}
                 placeholder="admin@example.com"
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white"
               />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-xs text-slate-400 mb-1">申请域名（多个用逗号分隔）*</label>
-              <input
+            </Field>
+
+            <Field label="申请域名（多个用逗号分隔）" required className="md:col-span-2">
+              <Input
+                mono
                 required
                 value={acmeForm.domainsText}
                 onChange={(e) => setAcmeForm({ ...acmeForm, domainsText: e.target.value })}
                 placeholder="app.example.com"
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white font-mono"
               />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-xs text-slate-400 mb-1">域名验证方式</label>
-              <select
+            </Field>
+
+            <Field label="域名验证方式" className="md:col-span-2">
+              <Select
                 value={acmeForm.challenge}
                 onChange={(e) => setAcmeForm({ ...acmeForm, challenge: e.target.value })}
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white"
               >
-                <option value="http01">HTTP-01 文件验证（需域名已解析到本机且公网 80 端口可达）</option>
-                <option value="cloudflare">DNS-01 — Cloudflare API Token（支持泛域名，无需 80 端口）</option>
+                <option value="http01">
+                  HTTP-01 文件验证（需域名已解析到本机且公网 80 端口可达）
+                </option>
+                <option value="cloudflare">
+                  DNS-01 — Cloudflare API Token（支持泛域名，无需 80 端口）
+                </option>
                 <option value="alidns">DNS-01 — 阿里云 DNS（支持泛域名，无需 80 端口）</option>
-              </select>
-            </div>
+              </Select>
+            </Field>
 
             {acmeForm.challenge === 'cloudflare' && (
-              <div className="md:col-span-2">
-                <label className="block text-xs text-slate-400 mb-1">Cloudflare API Token *</label>
-                <input
+              <Field label="Cloudflare API Token" required className="md:col-span-2">
+                <Input
+                  mono
                   required
                   type="password"
                   value={acmeForm.cfApiToken}
                   onChange={(e) => setAcmeForm({ ...acmeForm, cfApiToken: e.target.value })}
                   placeholder="具有 Zone:DNS:Edit 权限的 API Token"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white font-mono"
                 />
-              </div>
+              </Field>
             )}
 
             {acmeForm.challenge === 'alidns' && (
               <>
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">阿里云 AccessKey ID *</label>
-                  <input
+                <Field label="阿里云 AccessKey ID" required>
+                  <Input
+                    mono
                     required
                     value={acmeForm.aliKeyId}
                     onChange={(e) => setAcmeForm({ ...acmeForm, aliKeyId: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white font-mono"
                   />
-                </div>
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">阿里云 AccessKey Secret *</label>
-                  <input
+                </Field>
+                <Field label="阿里云 AccessKey Secret" required>
+                  <Input
+                    mono
                     required
                     type="password"
                     value={acmeForm.aliKeySecret}
                     onChange={(e) => setAcmeForm({ ...acmeForm, aliKeySecret: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white font-mono"
                   />
-                </div>
+                </Field>
               </>
             )}
           </div>
 
-          <div className="flex flex-wrap gap-5 pt-1">
-            <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
-              <input
-                type="checkbox"
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="rounded-lg border border-line p-3">
+              <Switch
                 checked={acmeForm.autoRenew}
-                onChange={(e) => setAcmeForm({ ...acmeForm, autoRenew: e.target.checked })}
+                onChange={(v) => setAcmeForm({ ...acmeForm, autoRenew: v })}
+                label="到期前 30 天自动续期"
               />
-              到期前 30 天自动续期
-            </label>
-            <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
-              <input
-                type="checkbox"
+            </div>
+            <div className="rounded-lg border border-line p-3">
+              <Switch
                 checked={acmeForm.staging}
-                onChange={(e) => setAcmeForm({ ...acmeForm, staging: e.target.checked })}
+                onChange={(v) => setAcmeForm({ ...acmeForm, staging: v })}
+                label="使用 Let’s Encrypt 测试环境 (Staging)"
               />
-              使用 Let’s Encrypt 测试环境 (Staging)
-            </label>
+            </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
-            <button
-              type="button"
-              onClick={() => setAcmeOpen(false)}
-              className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-sm cursor-pointer"
-            >
+          <ModalFooter>
+            <Button variant="secondary" onClick={() => setAcmeOpen(false)}>
               取消
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium cursor-pointer"
-            >
+            </Button>
+            <Button type="submit" variant="primary" loading={submitting}>
               {submitting ? '正在向 Let’s Encrypt 验证签发...' : '立即申请证书'}
-            </button>
-          </div>
+            </Button>
+          </ModalFooter>
         </form>
       </Modal>
     </div>
