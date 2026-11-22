@@ -78,6 +78,49 @@ jobs:
           "$hash  mo-server-panel.exe" | Set-Content -Path .\release\SHA256SUMS.txt -Encoding ascii
           Get-Content .\release\SHA256SUMS.txt
 
+      - name: Extract release notes from CHANGELOG.md
+        id: changelog
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          RELEASE_VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          $notesPath = 'release/RELEASE_NOTES.md'
+          $hasNotes = 'false'
+          if (Test-Path 'CHANGELOG.md') {
+            $lines = Get-Content -Path 'CHANGELOG.md' -Encoding utf8
+            $escaped = [regex]::Escape($env:RELEASE_VERSION)
+            $startPattern = "^## \[v?$escaped\](\s*-\s*.*)?\s*$"
+            $collecting = $false
+            $collected = New-Object System.Collections.Generic.List[string]
+            foreach ($line in $lines) {
+              if (-not $collecting) {
+                if ($line -match $startPattern) {
+                  $collecting = $true
+                }
+              } else {
+                if ($line -match '^## \[' -or $line -match '^\[[^\]]+\]:\s*https?://') {
+                  break
+                }
+                $collected.Add($line)
+              }
+            }
+            $body = ($collected -join "`n").Trim()
+            if (-not [string]::IsNullOrWhiteSpace($body)) {
+              $body | Set-Content -Path $notesPath -Encoding utf8
+              $hasNotes = 'true'
+              Write-Host "Extracted release notes for v$($env:RELEASE_VERSION) from CHANGELOG.md:"
+              Write-Host $body
+            } else {
+              Write-Host "No CHANGELOG.md entry found for $($env:RELEASE_VERSION); will fall back to GitHub auto-generated notes."
+            }
+          }
+          "has_notes=$hasNotes" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          if ($hasNotes -eq 'true') {
+            "notes_path=$notesPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          } else {
+            "notes_path=" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          }
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
@@ -94,7 +137,8 @@ jobs:
           tag_name: ${{ steps.meta.outputs.tag }}
           name: MoServerPanel ${{ steps.meta.outputs.tag }}
           prerelease: ${{ steps.meta.outputs.prerelease == 'true' }}
-          generate_release_notes: true
+          body_path: ${{ steps.changelog.outputs.notes_path }}
+          generate_release_notes: ${{ steps.changelog.outputs.has_notes != 'true' }}
           files: |
             release/mo-server-panel.exe
             release/SHA256SUMS.txt
