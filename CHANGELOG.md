@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-22
+
+### Added
+- **网络代理设置与 Windows 系统代理支持**：在「面板设置」中新增「网络代理设置」，支持 `自动（环境变量 + Windows 系统代理）`、`手动指定代理地址（HTTP / HTTPS / SOCKS5）` 与 `直连` 三种模式，实时展示检测到的系统代理，保存后无需重启立即生效。
+- **GitHub 更新支持代理**：WebUI 与命令行 `mo-server-panel.exe update` 均自动应用已配置的代理策略（解决 Windows 服务模式无法读取桌面用户系统代理的问题），CLI 另支持通过 `--proxy` 参数临时指定代理地址。
+
 ## [0.1.2] - 2026-11-22
 
 ### Added
@@ -37,7 +43,8 @@
 - 修复内置 SSH `exec` 命令在客户端未关闭 stdin 时等待 EOF 导致的超时死锁问题，并改用 PowerShell `-EncodedCommand` 执行命令。
 - 修复 Windows 8.3 短路径（如 `RUNNER~1` / `PROGRA~1`）导致内嵌 Nginx 校验与启动失败的问题，初始化数据目录与自定义 Nginx 目录时自动展开为完整长路径。
 
-[Unreleased]: https://github.com/mohen-ink/MoServerPanel/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/mohen-ink/MoServerPanel/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/mohen-ink/MoServerPanel/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/mohen-ink/MoServerPanel/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/mohen-ink/MoServerPanel/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/mohen-ink/MoServerPanel/releases/tag/v0.1.0
