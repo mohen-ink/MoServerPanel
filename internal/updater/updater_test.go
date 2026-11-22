@@ -3,10 +3,14 @@ package updater
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"win-server-panel/internal/config"
 )
@@ -133,4 +137,23 @@ func TestCheckUsesCustomProxy(t *testing.T) {
 	if !proxyHit || !res.HasUpdate || res.LatestVersion != "0.9.0" {
 		t.Fatalf("expected request to route through custom proxy, hit=%v res=%+v", proxyHit, res)
 	}
+}
+
+func TestSpawnDetachedPowerShell(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "detached-ok.txt")
+	quoted := "'" + strings.ReplaceAll(marker, "'", "''") + "'"
+	script := fmt.Sprintf("Set-Content -Path %s -Value 'ok' -NoNewline", quoted)
+
+	if err := spawnDetachedPowerShell(script); err != nil {
+		t.Fatalf("spawnDetachedPowerShell failed: %v", err)
+	}
+
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if raw, err := os.ReadFile(marker); err == nil && strings.TrimSpace(string(raw)) == "ok" {
+			return
+		}
+		time.Sleep(150 * time.Millisecond)
+	}
+	t.Fatalf("detached PowerShell script did not create marker file %s within timeout", marker)
 }

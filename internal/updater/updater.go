@@ -3,6 +3,7 @@ package updater
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -18,6 +19,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"unicode/utf16"
 
 	"win-server-panel/internal/config"
 	"win-server-panel/internal/netproxy"
@@ -474,12 +476,36 @@ func (m *Manager) triggerRestart(targetVersion string) error {
 			s.Message = fmt.Sprintf("已更新到 v%s，正在重启 Windows 服务...", targetVersion)
 		})
 		script := fmt.Sprintf(
-			"Start-Sleep -Seconds 1; Stop-Service -Name '%s' -Force -ErrorAction SilentlyContinue; "+
-				"for ($i=0; $i -lt 30; $i++) { if ((Get-Service -Name '%s' -ErrorAction SilentlyContinue).Status -eq 'Stopped') { break }; Start-Sleep -Milliseconds 500 }; "+
-				"Start-Service -Name '%s'",
+			"Start-Sleep -Seconds 2\n"+
+				"Stop-Service -Name '%s' -Force -ErrorAction SilentlyContinue\n"+
+				"for ($i = 0; $i -lt 40; $i++) {\n"+
+				"  $s = Get-Service -Name '%s' -ErrorAction SilentlyContinue\n"+
+				"  if (-not $s -or $s.Status -eq 'Stopped') { break }\n"+
+				"  Start-Sleep -Milliseconds 500\n"+
+				"}\n"+
+				"Start-Sleep -Milliseconds 500\n"+
+				"for ($j = 0; $j -lt 5; $j++) {\n"+
+				"  try { Start-Service -Name '%s' -ErrorAction Stop; break } catch { Start-Sleep -Seconds 1 }\n"+
+				"}\n",
 			service.ServiceName, service.ServiceName, service.ServiceName,
 		)
-		return spawnDetachedPowerShell(script)
+		if err := spawnDetachedPowerShell(script); err != nil {
+			return err
+		}
+		// Safety net: if the service is somehow still alive after 30s, leave StateRestarting
+		// so the UI does not stay stuck thinking a restart is still pending.
+		go func() {
+			time.Sleep(30 * time.Second)
+			m.mu.Lock()
+			if m.status.State == StateRestarting {
+				m.status.State = StateError
+				m.status.Error = fmt.Sprintf("新版本 v%s 已写入磁盘，但未能自动重启 Windows 服务，请手动重启 MoServerPanel 服务以生效", targetVersion)
+				m.status.Message = "自动重启超时"
+				m.busy = false
+			}
+			m.mu.Unlock()
+		}()
+		return nil
 	}
 
 	exePath, err := currentExePath()
@@ -500,12 +526,13 @@ func (m *Manager) triggerRestart(targetVersion string) error {
 		argList = append(argList, "'"+strings.ReplaceAll(a, "'", "''")+"'")
 	}
 	quotedExe := "'" + strings.ReplaceAll(exePath, "'", "''") + "'"
-	startExpr := fmt.Sprintf("Start-Process -FilePath %s", quotedExe)
+	quotedDir := "'" + strings.ReplaceAll(filepath.Dir(exePath), "'", "''") + "'"
+	startExpr := fmt.Sprintf("Start-Process -FilePath %s -WorkingDirectory %s", quotedExe, quotedDir)
 	if len(argList) > 0 {
 		startExpr += fmt.Sprintf(" -ArgumentList @(%s)", strings.Join(argList, ","))
 	}
 	script := fmt.Sprintf(
-		"Start-Sleep -Seconds 1; Wait-Process -Id %d -Timeout 15 -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 300; %s",
+		"Start-Sleep -Seconds 1\nWait-Process -Id %d -Timeout 20 -ErrorAction SilentlyContinue\nStart-Sleep -Milliseconds 500\n%s\n",
 		pid, startExpr,
 	)
 	if err := spawnDetachedPowerShell(script); err != nil {
@@ -514,7 +541,7 @@ func (m *Manager) triggerRestart(targetVersion string) error {
 
 	// Give the HTTP polling response a brief window to read "restarting", then gracefully shut down.
 	go func() {
-		time.Sleep(1200 * time.Millisecond)
+		time.Sleep(1500 * time.Millisecond)
 		if m.shutdownFn != nil {
 			m.shutdownFn()
 		} else {
@@ -524,13 +551,38 @@ func (m *Manager) triggerRestart(targetVersion string) error {
 	return nil
 }
 
-func spawnDetachedPowerShell(script string) error {
-	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script)
-	// CREATE_NO_WINDOW (0x08000000) | DETACHED_PROCESS (0x00000008) | CREATE_NEW_PROCESS_GROUP (0x00000200)
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		CreationFlags: 0x08000000 | 0x00000008 | 0x00000200,
+func encodePowerShellCommand(script string) string {
+	u16 := utf16.Encode([]rune(script))
+	b := make([]byte, len(u16)*2)
+	for i, v := range u16 {
+		b[i*2] = byte(v)
+		b[i*2+1] = byte(v >> 8)
 	}
-	return cmd.Start()
+	return base64.StdEncoding.EncodeToString(b)
+}
+
+func spawnDetachedPowerShell(script string) error {
+	// NOTE: Do NOT combine DETACHED_PROCESS (0x08) with CREATE_NO_WINDOW (0x08000000);
+	// on Windows they conflict and cause powershell.exe to exit silently without running the script.
+	cmd := exec.Command(
+		"powershell.exe",
+		"-NoProfile",
+		"-NonInteractive",
+		"-ExecutionPolicy", "Bypass",
+		"-WindowStyle", "Hidden",
+		"-EncodedCommand", encodePowerShellCommand(script),
+	)
+	// CREATE_NO_WINDOW (0x08000000) | CREATE_NEW_PROCESS_GROUP (0x00000200)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		CreationFlags: 0x08000000 | 0x00000200,
+	}
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	if cmd.Process != nil {
+		_ = cmd.Process.Release()
+	}
+	return nil
 }
 
 func (m *Manager) fetchExpectedSHA256(ctx context.Context, checksumURL, assetName string) (string, error) {

@@ -70,31 +70,49 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
+  const normalizeVersion = (v?: string) => (v || '').trim().replace(/^v/i, '');
+
   const startReconnectWatch = (targetVersion?: string) => {
     stopPolling();
     setReconnecting(true);
+    const wantVer = normalizeVersion(targetVersion);
     let attempts = 0;
+    let sawDisconnect = false;
     pollTimerRef.current = window.setInterval(async () => {
       attempts += 1;
-      if (attempts > 40) {
+      if (attempts > 45) {
         stopPolling();
         setReconnecting(false);
-        showToast('info', '等待服务重连超时，请手动刷新页面确认版本');
+        showToast('error', '等待新版本服务上线超时，请手动重启 MoServerPanel 服务后刷新页面');
         return;
       }
       try {
         const res = await api.authStatus();
         if (res) {
-          stopPolling();
-          setReconnecting(false);
-          showToast(
-            'success',
-            targetVersion ? `面板已重启并更新至 v${targetVersion}` : '面板服务已恢复连接'
-          );
-          window.setTimeout(() => window.location.reload(), 800);
+          const gotVer = normalizeVersion(res.version);
+          const upgraded = wantVer ? gotVer === wantVer : sawDisconnect;
+          if (upgraded) {
+            stopPolling();
+            setReconnecting(false);
+            showToast(
+              'success',
+              wantVer ? `面板已重启并更新至 v${wantVer}` : '面板服务已恢复连接'
+            );
+            window.setTimeout(() => window.location.reload(), 800);
+            return;
+          }
+          // Old process is still running; check whether backend reported a restart failure/timeout
+          const st = await api.updateStatus().catch(() => null);
+          if (st && st.state === 'error') {
+            stopPolling();
+            setReconnecting(false);
+            setUpdateStatus(st);
+            showToast('error', st.error || '自动重启失败，请手动重启服务');
+          }
         }
       } catch {
-        // Server is still restarting; keep waiting
+        // Server is restarting; keep waiting until the new version comes back online
+        sawDisconnect = true;
       }
     }, 1500);
   };
