@@ -107,12 +107,8 @@ func runPanel(ctx context.Context, dataDir, addrOverride string, portOverride in
 	cfg := store.GetConfig()
 
 	// Auto-start managed services if configured
-	if cfg.Nginx.AutoStart && len(store.ListProxies()) > 0 {
-		if err := nginxMgr.Start(); err != nil {
-			log.Printf("[nginx] auto-start failed: %v", err)
-		} else {
-			log.Printf("[nginx] auto-started successfully")
-		}
+	if cfg.Nginx.AutoStart {
+		autoStartNginx(runCtx, store, nginxMgr)
 	}
 
 	if cfg.SSH.AutoStart && cfg.SSH.PasswordHash != "" {
@@ -163,6 +159,38 @@ func runPanel(ctx context.Context, dataDir, addrOverride string, portOverride in
 		_ = httpSrv.Shutdown(shutdownCtx)
 		return context.Canceled
 	}
+}
+
+func autoStartNginx(ctx context.Context, store *config.Store, nginxMgr *nginx.Manager) {
+	if err := nginxMgr.Start(); err == nil {
+		log.Printf("[nginx] auto-started successfully")
+		return
+	} else {
+		log.Printf("[nginx] auto-start failed (will retry in background): %v", err)
+	}
+
+	go func() {
+		backoff := []time.Duration{3 * time.Second, 6 * time.Second, 12 * time.Second}
+		for i, delay := range backoff {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(delay):
+			}
+			if !store.GetConfig().Nginx.AutoStart {
+				return
+			}
+			if nginxMgr.Status().Running {
+				return
+			}
+			if err := nginxMgr.Start(); err == nil {
+				log.Printf("[nginx] auto-started successfully on retry %d", i+1)
+				return
+			} else {
+				log.Printf("[nginx] auto-start retry %d failed: %v", i+1, err)
+			}
+		}
+	}()
 }
 
 func handleServiceCmd(args []string) {

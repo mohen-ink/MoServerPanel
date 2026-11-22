@@ -325,10 +325,12 @@ export const api = {
   nginxRestart: () => request<NginxStatus>('/api/nginx/restart', { method: 'POST' }),
   nginxReload: () => request<NginxStatus>('/api/nginx/reload', { method: 'POST' }),
   nginxTest: () => request<{ ok: boolean; output: string }>('/api/nginx/test', { method: 'POST' }),
-  nginxSettings: (autoStart: boolean, customPath: string) =>
+  nginxSettings: (autoStart: boolean, customPath?: string) =>
     request<NginxStatus>('/api/nginx/settings', {
       method: 'PUT',
-      body: JSON.stringify({ autoStart, customPath }),
+      body: JSON.stringify(
+        customPath === undefined ? { autoStart } : { autoStart, customPath }
+      ),
     }),
   nginxLogs: (type: 'access' | 'error', lines = 200) =>
     request<{ type: string; content: string }>(`/api/nginx/logs?type=${type}&lines=${lines}`),

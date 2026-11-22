@@ -227,7 +227,7 @@ export const NginxPage: React.FC = () => {
   const toggleAutoStart = async () => {
     if (!status) return;
     try {
-      const res = await api.nginxSettings(!status.autoStart, '');
+      const res = await api.nginxSettings(!status.autoStart);
       setStatus(res);
       showToast('success', res.autoStart ? '已开启随面板自动启动 Nginx' : '已关闭自动启动 Nginx');
     } catch (err: any) {

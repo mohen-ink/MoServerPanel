@@ -118,3 +118,56 @@ func TestEmbeddedNginxReverseProxyAndRollback(t *testing.T) {
 		t.Fatal("expected Nginx to be stopped")
 	}
 }
+
+func TestEmbeddedNginxStartWithoutSites(t *testing.T) {
+	store, err := config.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	mgr := NewManager(store)
+
+	if err := mgr.EnsureReady(); err != nil {
+		t.Fatalf("EnsureReady failed: %v", err)
+	}
+	if err := mgr.Start(); err != nil {
+		t.Fatalf("Nginx Start without sites failed: %v", err)
+	}
+	defer func() {
+		_ = mgr.Stop()
+	}()
+
+	st := mgr.Status()
+	if !st.Running || st.PID <= 0 {
+		t.Fatalf("expected Nginx running without sites, got status: %+v", st)
+	}
+	if st.SiteCount != 0 || !st.AutoStart {
+		t.Fatalf("expected SiteCount=0 and AutoStart=true, got: %+v", st)
+	}
+}
+
+func TestUpdateSettingsPreservesCustomPathWhenOmitted(t *testing.T) {
+	store, err := config.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	mgr := NewManager(store)
+
+	custom := `C:\custom\nginx`
+	if err := mgr.UpdateSettings(true, &custom); err != nil {
+		t.Fatalf("UpdateSettings with customPath failed: %v", err)
+	}
+	if got := store.GetConfig().Nginx.CustomPath; got != custom {
+		t.Fatalf("expected CustomPath=%q, got %q", custom, got)
+	}
+
+	if err := mgr.UpdateSettings(false, nil); err != nil {
+		t.Fatalf("UpdateSettings without customPath failed: %v", err)
+	}
+	cfg := store.GetConfig().Nginx
+	if cfg.AutoStart {
+		t.Fatalf("expected AutoStart=false")
+	}
+	if cfg.CustomPath != custom {
+		t.Fatalf("expected CustomPath=%q to be preserved, got %q", custom, cfg.CustomPath)
+	}
+}

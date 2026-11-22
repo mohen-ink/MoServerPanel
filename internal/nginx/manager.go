@@ -263,16 +263,28 @@ func (m *Manager) startLocked() error {
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("启动 Nginx 失败: %w", err)
 	}
+	waitCh := make(chan error, 1)
 	go func() {
-		_ = cmd.Wait()
+		waitCh <- cmd.Wait()
 	}()
 
-	deadline := time.Now().Add(4 * time.Second)
+	deadline := time.Now().Add(6 * time.Second)
 	for time.Now().Before(deadline) {
 		if _, running := m.detectRunningPID(); running {
 			return nil
 		}
-		time.Sleep(150 * time.Millisecond)
+		select {
+		case <-waitCh:
+			if _, running := m.detectRunningPID(); running {
+				return nil
+			}
+			errLog := m.readTailLog(filepath.Join(dir, "logs", "error.log"), 10)
+			if errLog != "" {
+				return fmt.Errorf("Nginx 启动异常退出，错误日志:\n%s", errLog)
+			}
+			return errors.New("Nginx 启动异常退出，请检查端口占用或错误日志")
+		case <-time.After(150 * time.Millisecond):
+		}
 	}
 
 	errLog := m.readTailLog(filepath.Join(dir, "logs", "error.log"), 10)
@@ -731,12 +743,14 @@ func (m *Manager) readTailLog(path string, maxLines int) string {
 	return strings.Join(all[len(all)-maxLines:], "\n")
 }
 
-func (m *Manager) UpdateSettings(autoStart bool, customPath string) error {
+func (m *Manager) UpdateSettings(autoStart bool, customPath *string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.store.UpdateConfig(func(c *config.PanelConfig) error {
 		c.Nginx.AutoStart = autoStart
-		c.Nginx.CustomPath = strings.TrimSpace(customPath)
+		if customPath != nil {
+			c.Nginx.CustomPath = strings.TrimSpace(*customPath)
+		}
 		return nil
 	})
 }

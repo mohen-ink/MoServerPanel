@@ -61,8 +61,8 @@ func (s *Server) handleNginxTest(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleNginxSettings(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		AutoStart  bool   `json:"autoStart"`
-		CustomPath string `json:"customPath"`
+		AutoStart  bool    `json:"autoStart"`
+		CustomPath *string `json:"customPath"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "请求参数格式错误")
