@@ -67,9 +67,17 @@ func TestEmbeddedNginxReverseProxyAndRollback(t *testing.T) {
 		t.Fatalf("expected Nginx running, got status: %+v", st)
 	}
 
-	// Verify live HTTP reverse proxy forwarding
+	// Verify live HTTP reverse proxy forwarding (retry briefly while Nginx worker binds the socket under CI load)
 	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/hello-wsp", proxyPort))
+	var resp *http.Response
+	deadline := time.Now().Add(8 * time.Second)
+	for {
+		resp, err = client.Get(fmt.Sprintf("http://127.0.0.1:%d/hello-wsp", proxyPort))
+		if err == nil || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(150 * time.Millisecond)
+	}
 	if err != nil {
 		t.Fatalf("proxy GET failed: %v", err)
 	}

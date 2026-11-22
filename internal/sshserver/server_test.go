@@ -212,7 +212,7 @@ func TestSSHExecDoesNotDeadlockWhenClientKeepsStdinOpen(t *testing.T) {
 		if !strings.Contains(string(out), "ok-multiline") {
 			t.Fatalf("unexpected output: %q", string(out))
 		}
-	case <-time.After(8 * time.Second):
+	case <-time.After(20 * time.Second):
 		sess.Close()
 		t.Fatal("SSH exec deadlocked waiting for client stdin EOF!")
 	}

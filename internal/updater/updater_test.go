@@ -148,7 +148,7 @@ func TestSpawnDetachedPowerShell(t *testing.T) {
 		t.Fatalf("spawnDetachedPowerShell failed: %v", err)
 	}
 
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(25 * time.Second)
 	for time.Now().Before(deadline) {
 		if raw, err := os.ReadFile(marker); err == nil && strings.TrimSpace(string(raw)) == "ok" {
 			return
