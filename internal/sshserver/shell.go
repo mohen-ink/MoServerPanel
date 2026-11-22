@@ -2,11 +2,13 @@ package sshserver
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/binary"
 	"io"
 	"os/exec"
 	"strings"
 	"syscall"
+	"unicode/utf16"
 
 	"golang.org/x/crypto/ssh"
 
@@ -90,6 +92,7 @@ func (m *Manager) handleSessionChannel(sessID string, channel ssh.Channel, reque
 			m.updateSessionMode(sessID, "exec")
 			exitCode := m.runExecCommand(payload.Command, channel)
 			sendExitStatus(channel, exitCode)
+			_ = channel.CloseWrite()
 			return
 
 		case "subsystem":
@@ -120,21 +123,51 @@ func (m *Manager) runExecCommand(command string, channel ssh.Channel) uint32 {
 	if shell == "cmd" {
 		cmd = exec.Command("cmd.exe", "/C", command)
 	} else {
-		cmd = exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command)
+		script := "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8\n" + command
+		cmd = exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand", encodePowerShellUTF16LE(script))
 	}
 	cmd.Dir = pty.DefaultWorkDir()
 	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: 0x08000000}
-	cmd.Stdin = channel
 	cmd.Stdout = channel
 	cmd.Stderr = channel.Stderr()
 
-	if err := cmd.Run(); err != nil {
+	// Do NOT assign cmd.Stdin = channel directly: Go's os/exec Wait() blocks until
+	// the Stdin copy goroutine sees EOF on channel, which deadlocks SSH clients
+	// that keep stdin open until exit-status/channel-close.
+	stdinPipe, err := cmd.StdinPipe()
+	if err != nil {
+		return 1
+	}
+
+	if err := cmd.Start(); err != nil {
+		_ = stdinPipe.Close()
+		_, _ = io.WriteString(channel.Stderr(), "Failed to start command: "+err.Error()+"\n")
+		return 1
+	}
+
+	go func() {
+		defer stdinPipe.Close()
+		_, _ = io.Copy(stdinPipe, channel)
+	}()
+
+	err = cmd.Wait()
+	_ = stdinPipe.Close()
+	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			return uint32(exitErr.ExitCode())
 		}
 		return 1
 	}
 	return 0
+}
+
+func encodePowerShellUTF16LE(script string) string {
+	u16 := utf16.Encode([]rune(script))
+	b := make([]byte, len(u16)*2)
+	for i, v := range u16 {
+		binary.LittleEndian.PutUint16(b[i*2:], v)
+	}
+	return base64.StdEncoding.EncodeToString(b)
 }
 
 func sendExitStatus(channel ssh.Channel, code uint32) {

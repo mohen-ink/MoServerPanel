@@ -126,3 +126,71 @@ func TestEmbeddedSSHAndSFTP(t *testing.T) {
 		t.Fatalf("KickSession: %v", err)
 	}
 }
+
+func TestSSHExecDoesNotDeadlockWhenClientKeepsStdinOpen(t *testing.T) {
+	store, err := config.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	limiter := auth.NewRateLimiter(5, 5*time.Minute, 10*time.Minute)
+	mgr := NewManager(store, limiter)
+
+	port := getFreePort(t)
+	if err := mgr.UpdateConfig(UpdateConfigInput{
+		ListenAddr:   "127.0.0.1",
+		Port:         port,
+		Username:     "ops",
+		Password:     "OpsPass123",
+		DefaultShell: "powershell",
+		EnableSFTP:   false,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := mgr.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer mgr.Shutdown()
+
+	client, err := ssh.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port), &ssh.ClientConfig{
+		User:            "ops",
+		Auth:            []ssh.AuthMethod{ssh.Password("OpsPass123")},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("ssh.Dial: %v", err)
+	}
+	defer client.Close()
+
+	// Simulate an SSH client (e.g. Node ssh2 / server management tools) that keeps stdin open
+	// without sending SSH_MSG_CHANNEL_EOF while waiting for exec to complete.
+	sess, err := client.NewSession()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pr, pw := io.Pipe()
+	defer pw.Close()
+	sess.Stdin = pr
+
+	done := make(chan struct{})
+	var out []byte
+	var runErr error
+	go func() {
+		defer close(done)
+		out, runErr = sess.CombinedOutput("Write-Output \"=== CPU ===\"\nWrite-Output 'ok-multiline'")
+	}()
+
+	select {
+	case <-done:
+		sess.Close()
+		if runErr != nil {
+			t.Fatalf("exec with open stdin failed: %v (out=%s)", runErr, string(out))
+		}
+		if !strings.Contains(string(out), "ok-multiline") {
+			t.Fatalf("unexpected output: %q", string(out))
+		}
+	case <-time.After(8 * time.Second):
+		sess.Close()
+		t.Fatal("SSH exec deadlocked waiting for client stdin EOF!")
+	}
+}
