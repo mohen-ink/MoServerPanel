@@ -111,12 +111,17 @@ func (s *Server) registerRoutes() {
 	s.mux.Handle("DELETE /api/nginx/sites/{id}", s.requireAuth(http.HandlerFunc(s.handleDeleteNginxSite)))
 	s.mux.Handle("GET /api/nginx/sites/{id}/preview", s.requireAuth(http.HandlerFunc(s.handlePreviewNginxSite)))
 
-	// Certificates & ACME
+	// Certificates & ACME & DNS Accounts
 	s.mux.Handle("GET /api/certs", s.requireAuth(http.HandlerFunc(s.handleListCerts)))
 	s.mux.Handle("POST /api/certs/manual", s.requireAuth(http.HandlerFunc(s.handleUploadManualCert)))
 	s.mux.Handle("POST /api/certs/acme", s.requireAuth(http.HandlerFunc(s.handleIssueACMECert)))
+	s.mux.Handle("PUT /api/certs/{id}", s.requireAuth(http.HandlerFunc(s.handleUpdateCert)))
 	s.mux.Handle("POST /api/certs/{id}/renew", s.requireAuth(http.HandlerFunc(s.handleRenewCert)))
 	s.mux.Handle("DELETE /api/certs/{id}", s.requireAuth(http.HandlerFunc(s.handleDeleteCert)))
+	s.mux.Handle("GET /api/dns-accounts", s.requireAuth(http.HandlerFunc(s.handleListDNSAccounts)))
+	s.mux.Handle("POST /api/dns-accounts", s.requireAuth(http.HandlerFunc(s.handleCreateDNSAccount)))
+	s.mux.Handle("PUT /api/dns-accounts/{id}", s.requireAuth(http.HandlerFunc(s.handleUpdateDNSAccount)))
+	s.mux.Handle("DELETE /api/dns-accounts/{id}", s.requireAuth(http.HandlerFunc(s.handleDeleteDNSAccount)))
 
 	// SSH
 	s.mux.Handle("GET /api/ssh/status", s.requireAuth(http.HandlerFunc(s.handleSSHStatus)))

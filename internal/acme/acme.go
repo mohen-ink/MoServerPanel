@@ -35,10 +35,19 @@ type IssueRequest struct {
 	Name           string            `json:"name"`
 	Domains        []string          `json:"domains"`
 	Email          string            `json:"email"`
-	Challenge      string            `json:"challenge"` // "http01", "cloudflare", "alidns"
+	Challenge      string            `json:"challenge"` // "http01", "cloudflare", "alidns" (auto-derived if dnsAccountId is set)
+	DNSAccountID   string            `json:"dnsAccountId"`
 	ProviderConfig map[string]string `json:"providerConfig"`
 	AutoRenew      bool              `json:"autoRenew"`
 	Staging        bool              `json:"staging"`
+}
+
+type UpdateCertInput struct {
+	Name         *string `json:"name"`
+	AutoRenew    *bool   `json:"autoRenew"`
+	ACMEEmail    *string `json:"acmeEmail"`
+	Challenge    *string `json:"challenge"`
+	DNSAccountID *string `json:"dnsAccountId"`
 }
 
 type Manager struct {
@@ -126,11 +135,28 @@ func (m *Manager) IssueACME(req IssueRequest) (config.Certificate, error) {
 		return config.Certificate{}, errors.New("请填写有效的邮箱地址（用于 Let's Encrypt 账户注册）")
 	}
 	challenge := strings.ToLower(strings.TrimSpace(req.Challenge))
-	if challenge == "" {
-		challenge = "http01"
+	dnsAccountID := strings.TrimSpace(req.DNSAccountID)
+	providerCfg := req.ProviderConfig
+	var storedProviderCfg map[string]string
+
+	if dnsAccountID != "" {
+		acc, ok := m.store.GetDNSAccount(dnsAccountID)
+		if !ok {
+			return config.Certificate{}, errors.New("所选 DNS 账号不存在")
+		}
+		challenge = acc.Provider
+		providerCfg = acc.Config
+	} else {
+		if challenge == "" {
+			challenge = "http01"
+		}
+		if challenge == "dns" {
+			return config.Certificate{}, errors.New("请选择一个已保存的 DNS 账号")
+		}
+		storedProviderCfg = req.ProviderConfig
 	}
 
-	res, err := m.obtainCertResource(domains, email, challenge, req.ProviderConfig, req.Staging)
+	res, err := m.obtainCertResource(domains, email, challenge, providerCfg, req.Staging)
 	if err != nil {
 		return config.Certificate{}, err
 	}
@@ -174,7 +200,9 @@ func (m *Manager) IssueACME(req IssueRequest) (config.Certificate, error) {
 		KeyPath:            keyPath,
 		ACMEEmail:          email,
 		ACMEChallenge:      challenge,
-		ACMEProviderConfig: req.ProviderConfig,
+		DNSAccountID:       dnsAccountID,
+		ACMEStaging:        req.Staging,
+		ACMEProviderConfig: storedProviderCfg,
 		AutoRenew:          req.AutoRenew,
 		LastRenewAt:        &now,
 		CreatedAt:          now,
@@ -188,7 +216,83 @@ func (m *Manager) IssueACME(req IssueRequest) (config.Certificate, error) {
 		return config.Certificate{}, err
 	}
 
-	return cert, nil
+	return m.sanitizeCert(cert), nil
+}
+
+func (m *Manager) UpdateCert(id string, in UpdateCertInput) (config.Certificate, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	existing, ok := m.store.GetCert(id)
+	if !ok {
+		return config.Certificate{}, errors.New("证书不存在")
+	}
+
+	updated := existing
+	if in.Name != nil {
+		name := strings.TrimSpace(*in.Name)
+		if name == "" {
+			return config.Certificate{}, errors.New("证书名称不能为空")
+		}
+		updated.Name = name
+	}
+
+	if existing.Source == "acme" {
+		if in.AutoRenew != nil {
+			updated.AutoRenew = *in.AutoRenew
+		}
+		if in.ACMEEmail != nil {
+			email := strings.TrimSpace(*in.ACMEEmail)
+			if email == "" || !strings.Contains(email, "@") {
+				return config.Certificate{}, errors.New("请填写有效的联系邮箱")
+			}
+			updated.ACMEEmail = email
+		}
+		if in.Challenge != nil && strings.EqualFold(strings.TrimSpace(*in.Challenge), "http01") {
+			updated.ACMEChallenge = "http01"
+			updated.DNSAccountID = ""
+			updated.ACMEProviderConfig = nil
+		} else if in.DNSAccountID != nil {
+			accID := strings.TrimSpace(*in.DNSAccountID)
+			if accID != "" {
+				acc, ok := m.store.GetDNSAccount(accID)
+				if !ok {
+					return config.Certificate{}, errors.New("所选 DNS 账号不存在")
+				}
+				updated.DNSAccountID = acc.ID
+				updated.ACMEChallenge = acc.Provider
+				updated.ACMEProviderConfig = nil
+			}
+		}
+	}
+
+	updated.DNSAccountName = ""
+	updated.UpdatedAt = time.Now()
+
+	if err := m.store.SaveCerts(func(list []config.Certificate) ([]config.Certificate, error) {
+		for i := range list {
+			if list[i].ID == id {
+				list[i] = updated
+				return list, nil
+			}
+		}
+		return list, errors.New("证书不存在")
+	}); err != nil {
+		return config.Certificate{}, err
+	}
+
+	return m.sanitizeCert(updated), nil
+}
+
+func (m *Manager) resolveCertChallenge(cert config.Certificate) (string, map[string]string, error) {
+	if cert.DNSAccountID != "" {
+		acc, ok := m.store.GetDNSAccount(cert.DNSAccountID)
+		if !ok {
+			return "", nil, errors.New("关联的 DNS 账号不存在，请在证书设置中重新选择 DNS 账号")
+		}
+		return acc.Provider, acc.Config, nil
+	}
+	return cert.ACMEChallenge, cert.ACMEProviderConfig, nil
 }
 
 func (m *Manager) RenewCert(id string) (config.Certificate, error) {
@@ -203,17 +307,15 @@ func (m *Manager) RenewCert(id string) (config.Certificate, error) {
 		return config.Certificate{}, errors.New("仅 Let's Encrypt ACME 证书支持自动续期")
 	}
 
-	res, err := m.obtainCertResource(existing.Domains, existing.ACMEEmail, existing.ACMEChallenge, existing.ACMEProviderConfig, false)
+	challenge, providerCfg, err := m.resolveCertChallenge(existing)
 	if err != nil {
-		_ = m.store.SaveCerts(func(list []config.Certificate) ([]config.Certificate, error) {
-			for i := range list {
-				if list[i].ID == id {
-					list[i].LastError = err.Error()
-					list[i].UpdatedAt = time.Now()
-				}
-			}
-			return list, nil
-		})
+		m.recordRenewError(id, err)
+		return config.Certificate{}, err
+	}
+
+	res, err := m.obtainCertResource(existing.Domains, existing.ACMEEmail, challenge, providerCfg, existing.ACMEStaging)
+	if err != nil {
+		m.recordRenewError(id, err)
 		return config.Certificate{}, err
 	}
 
@@ -235,6 +337,8 @@ func (m *Manager) RenewCert(id string) (config.Certificate, error) {
 	updated.Issuer = info.Issuer
 	updated.NotBefore = info.NotBefore
 	updated.NotAfter = info.NotAfter
+	updated.ACMEChallenge = challenge
+	updated.DNSAccountName = ""
 	updated.LastRenewAt = &now
 	updated.LastError = ""
 	updated.UpdatedAt = now
@@ -252,7 +356,19 @@ func (m *Manager) RenewCert(id string) (config.Certificate, error) {
 
 	// Reload Nginx so updated certificate takes effect immediately
 	_ = m.nginxMgr.Reload()
-	return updated, nil
+	return m.sanitizeCert(updated), nil
+}
+
+func (m *Manager) recordRenewError(id string, err error) {
+	_ = m.store.SaveCerts(func(list []config.Certificate) ([]config.Certificate, error) {
+		for i := range list {
+			if list[i].ID == id {
+				list[i].LastError = err.Error()
+				list[i].UpdatedAt = time.Now()
+			}
+		}
+		return list, nil
+	})
 }
 
 func (m *Manager) obtainCertResource(domains []string, email, challenge string, providerCfg map[string]string, staging bool) (*certificate.Resource, error) {

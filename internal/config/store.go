@@ -14,12 +14,13 @@ import (
 )
 
 type Store struct {
-	mu      sync.RWMutex
-	dataDir string
-	cfg     PanelConfig
-	proxies []ProxySite
-	certs   []Certificate
-	fwRules []FirewallRule
+	mu          sync.RWMutex
+	dataDir     string
+	cfg         PanelConfig
+	proxies     []ProxySite
+	certs       []Certificate
+	dnsAccounts []DNSAccount
+	fwRules     []FirewallRule
 }
 
 func NewStore(dataDir string) (*Store, error) {
@@ -42,10 +43,11 @@ func NewStore(dataDir string) (*Store, error) {
 	absDir = ExpandLongPath(absDir)
 
 	s := &Store{
-		dataDir: absDir,
-		proxies: []ProxySite{},
-		certs:   []Certificate{},
-		fwRules: []FirewallRule{},
+		dataDir:     absDir,
+		proxies:     []ProxySite{},
+		certs:       []Certificate{},
+		dnsAccounts: []DNSAccount{},
+		fwRules:     []FirewallRule{},
 	}
 
 	if err := s.loadAll(); err != nil {
@@ -165,6 +167,9 @@ func (s *Store) loadAll() error {
 	if err := readJSONIfExists(filepath.Join(s.StoreDir(), "certs.json"), &s.certs); err != nil {
 		return fmt.Errorf("load certs.json: %w", err)
 	}
+	if err := readJSONIfExists(filepath.Join(s.StoreDir(), "dns_accounts.json"), &s.dnsAccounts); err != nil {
+		return fmt.Errorf("load dns_accounts.json: %w", err)
+	}
 	if err := readJSONIfExists(filepath.Join(s.StoreDir(), "firewall.json"), &s.fwRules); err != nil {
 		return fmt.Errorf("load firewall.json: %w", err)
 	}
@@ -264,6 +269,68 @@ func (s *Store) SaveCerts(fn func([]Certificate) ([]Certificate, error)) error {
 		return err
 	}
 	s.certs = next
+	return nil
+}
+
+func cloneStringMap(m map[string]string) map[string]string {
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]string, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}
+
+func cloneDNSAccount(a DNSAccount) DNSAccount {
+	a.Config = cloneStringMap(a.Config)
+	return a
+}
+
+func (s *Store) ListDNSAccounts() []DNSAccount {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]DNSAccount, len(s.dnsAccounts))
+	for i, a := range s.dnsAccounts {
+		out[i] = cloneDNSAccount(a)
+	}
+	return out
+}
+
+func (s *Store) GetDNSAccount(id string) (DNSAccount, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, a := range s.dnsAccounts {
+		if a.ID == id {
+			return cloneDNSAccount(a), true
+		}
+	}
+	return DNSAccount{}, false
+}
+
+func (s *Store) SaveDNSAccounts(fn func([]DNSAccount) ([]DNSAccount, error)) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cp := make([]DNSAccount, len(s.dnsAccounts))
+	for i, a := range s.dnsAccounts {
+		cp[i] = cloneDNSAccount(a)
+	}
+	next, err := fn(cp)
+	if err != nil {
+		return err
+	}
+	if next == nil {
+		next = []DNSAccount{}
+	}
+	if err := atomicWriteJSON(filepath.Join(s.StoreDir(), "dns_accounts.json"), next); err != nil {
+		return err
+	}
+	stored := make([]DNSAccount, len(next))
+	for i, a := range next {
+		stored[i] = cloneDNSAccount(a)
+	}
+	s.dnsAccounts = stored
 	return nil
 }
 

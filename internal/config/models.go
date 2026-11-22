@@ -53,6 +53,16 @@ type ProxySite struct {
 	UpdatedAt         time.Time `json:"updatedAt"`
 }
 
+type DNSAccount struct {
+	ID        string            `json:"id"`
+	Name      string            `json:"name"`
+	Provider  string            `json:"provider"` // "cloudflare", "alidns"
+	Config    map[string]string `json:"config"`   // cloudflare: apiToken; alidns: accessKeyId, accessKeySecret
+	Remark    string            `json:"remark,omitempty"`
+	CreatedAt time.Time         `json:"createdAt"`
+	UpdatedAt time.Time         `json:"updatedAt"`
+}
+
 type Certificate struct {
 	ID                 string            `json:"id"`
 	Name               string            `json:"name"`
@@ -65,6 +75,9 @@ type Certificate struct {
 	KeyPath            string            `json:"keyPath"`
 	ACMEEmail          string            `json:"acmeEmail,omitempty"`
 	ACMEChallenge      string            `json:"acmeChallenge,omitempty"` // "http01", "cloudflare", "alidns"
+	DNSAccountID       string            `json:"dnsAccountId,omitempty"`
+	DNSAccountName     string            `json:"dnsAccountName,omitempty"`
+	ACMEStaging        bool              `json:"acmeStaging,omitempty"`
 	ACMEProviderConfig map[string]string `json:"acmeProviderConfig,omitempty"`
 	AutoRenew          bool              `json:"autoRenew"`
 	LastRenewAt        *time.Time        `json:"lastRenewAt,omitempty"`

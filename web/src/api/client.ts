@@ -62,6 +62,16 @@ export interface ProxySite {
   updatedAt: string;
 }
 
+export interface DNSAccount {
+  id: string;
+  name: string;
+  provider: 'cloudflare' | 'alidns' | string;
+  config: Record<string, string>;
+  remark?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Certificate {
   id: string;
   name: string;
@@ -74,6 +84,9 @@ export interface Certificate {
   keyPath: string;
   acmeEmail?: string;
   acmeChallenge?: string;
+  dnsAccountId?: string;
+  dnsAccountName?: string;
+  acmeStaging?: boolean;
   autoRenew: boolean;
   lastRenewAt?: string;
   lastError?: string;
@@ -322,7 +335,7 @@ export const api = {
   previewNginxSite: (id: string) =>
     request<{ config: string }>(`/api/nginx/sites/${id}/preview`),
 
-  // Certificates
+  // Certificates & DNS Accounts
   listCerts: () => request<{ items: Certificate[] }>('/api/certs'),
   uploadManualCert: (payload: { name: string; certPem: string; keyPem: string }) =>
     request<Certificate>('/api/certs/manual', {
@@ -334,6 +347,7 @@ export const api = {
     domains: string[];
     email: string;
     challenge: string;
+    dnsAccountId?: string;
     providerConfig?: Record<string, string>;
     autoRenew: boolean;
     staging?: boolean;
@@ -342,8 +356,49 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+  updateCert: (
+    id: string,
+    payload: {
+      name?: string;
+      autoRenew?: boolean;
+      acmeEmail?: string;
+      challenge?: string;
+      dnsAccountId?: string;
+    }
+  ) =>
+    request<Certificate>(`/api/certs/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
   renewCert: (id: string) => request<Certificate>(`/api/certs/${id}/renew`, { method: 'POST' }),
   deleteCert: (id: string) => request<{ ok: boolean }>(`/api/certs/${id}`, { method: 'DELETE' }),
+
+  listDNSAccounts: () => request<{ items: DNSAccount[] }>('/api/dns-accounts'),
+  createDNSAccount: (payload: {
+    name: string;
+    provider: string;
+    config: Record<string, string>;
+    remark?: string;
+  }) =>
+    request<DNSAccount>('/api/dns-accounts', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  updateDNSAccount: (
+    id: string,
+    payload: {
+      name: string;
+      provider: string;
+      config: Record<string, string>;
+      remark?: string;
+    }
+  ) =>
+    request<DNSAccount>(`/api/dns-accounts/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+  deleteDNSAccount: (id: string) =>
+    request<{ ok: boolean }>(`/api/dns-accounts/${id}`, { method: 'DELETE' }),
 
   // SSH
   sshStatus: () => request<SSHStatus>('/api/ssh/status'),

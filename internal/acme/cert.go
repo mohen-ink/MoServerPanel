@@ -66,18 +66,43 @@ func ParseAndValidatePEM(certPEM, keyPEM []byte) (ParsedCertInfo, error) {
 	}, nil
 }
 
+func (m *Manager) sanitizeCertWithMap(c config.Certificate, dnsNames map[string]string) config.Certificate {
+	if len(c.ACMEProviderConfig) > 0 {
+		masked := make(map[string]string, len(c.ACMEProviderConfig))
+		for k, v := range c.ACMEProviderConfig {
+			if v != "" {
+				masked[k] = maskSecret(v)
+			}
+		}
+		c.ACMEProviderConfig = masked
+	}
+	if c.DNSAccountID != "" {
+		if name, ok := dnsNames[c.DNSAccountID]; ok {
+			c.DNSAccountName = name
+		}
+	}
+	return c
+}
+
+func (m *Manager) sanitizeCert(c config.Certificate) config.Certificate {
+	dnsNames := make(map[string]string)
+	if c.DNSAccountID != "" {
+		if acc, ok := m.store.GetDNSAccount(c.DNSAccountID); ok {
+			dnsNames[acc.ID] = acc.Name
+		}
+	}
+	return m.sanitizeCertWithMap(c, dnsNames)
+}
+
 func (m *Manager) ListCertsSanitized() []config.Certificate {
 	certs := m.store.ListCerts()
+	accounts := m.store.ListDNSAccounts()
+	dnsNames := make(map[string]string, len(accounts))
+	for _, a := range accounts {
+		dnsNames[a.ID] = a.Name
+	}
 	for i := range certs {
-		if len(certs[i].ACMEProviderConfig) > 0 {
-			masked := make(map[string]string, len(certs[i].ACMEProviderConfig))
-			for k, v := range certs[i].ACMEProviderConfig {
-				if v != "" {
-					masked[k] = "******"
-				}
-			}
-			certs[i].ACMEProviderConfig = masked
-		}
+		certs[i] = m.sanitizeCertWithMap(certs[i], dnsNames)
 	}
 	return certs
 }
