@@ -22,6 +22,7 @@
 
 ### Fixed
 - 修复内置 SSH `exec` 命令在客户端未关闭 stdin 时等待 EOF 导致的超时死锁问题，并改用 PowerShell `-EncodedCommand` 执行命令。
+- 修复 Windows 8.3 短路径（如 `RUNNER~1` / `PROGRA~1`）导致内嵌 Nginx 校验与启动失败的问题，初始化数据目录与自定义 Nginx 目录时自动展开为完整长路径。
 
 [Unreleased]: https://github.com/mohen-ink/MoServerPanel/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/mohen-ink/MoServerPanel/releases/tag/v0.1.0

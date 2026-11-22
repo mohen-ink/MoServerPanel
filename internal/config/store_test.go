@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"strings"
 	"testing"
 )
 
@@ -47,5 +49,23 @@ func TestStorePersistence(t *testing.T) {
 	p, ok := s2.GetProxy("site1")
 	if !ok || p.Name != "Test Site" {
 		t.Fatalf("reloaded proxy mismatch: %+v, ok=%v", p, ok)
+	}
+}
+
+func TestExpandLongPath(t *testing.T) {
+	if _, err := os.Stat(`C:\PROGRA~1`); err == nil {
+		got := ExpandLongPath(`C:\PROGRA~1`)
+		if strings.Contains(got, "~") || !strings.EqualFold(got, `C:\Program Files`) {
+			t.Fatalf("ExpandLongPath(`C:\\PROGRA~1`) = %q, want `C:\\Program Files`", got)
+		}
+	}
+
+	dir := t.TempDir()
+	s, err := NewStore(dir)
+	if err != nil {
+		t.Fatalf("NewStore failed: %v", err)
+	}
+	if strings.Contains(s.DataDir(), "~") {
+		t.Fatalf("expected expanded DataDir without 8.3 short name, got %q", s.DataDir())
 	}
 }

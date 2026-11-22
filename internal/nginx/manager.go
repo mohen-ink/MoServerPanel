@@ -57,7 +57,7 @@ func NewManager(store *config.Store) *Manager {
 func (m *Manager) NginxDir() string {
 	cfg := m.store.GetConfig()
 	if strings.TrimSpace(cfg.Nginx.CustomPath) != "" {
-		return strings.TrimSpace(cfg.Nginx.CustomPath)
+		return config.ExpandLongPath(strings.TrimSpace(cfg.Nginx.CustomPath))
 	}
 	return m.store.NginxDir()
 }

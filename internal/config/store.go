@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"golang.org/x/sys/windows"
 )
 
 type Store struct {
@@ -37,6 +39,7 @@ func NewStore(dataDir string) (*Store, error) {
 			return nil, fmt.Errorf("create dir %s: %w", d, err)
 		}
 	}
+	absDir = ExpandLongPath(absDir)
 
 	s := &Store{
 		dataDir: absDir,
@@ -53,6 +56,28 @@ func NewStore(dataDir string) (*Store, error) {
 
 func (s *Store) DataDir() string {
 	return s.dataDir
+}
+
+// ExpandLongPath converts Windows 8.3 short path segments (e.g. RUNNER~1) into
+// full long path names so embedded Windows Nginx (which rejects 8.3 short paths) works reliably.
+func ExpandLongPath(path string) string {
+	p, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		return path
+	}
+	buf := make([]uint16, 260)
+	n, err := windows.GetLongPathName(p, &buf[0], uint32(len(buf)))
+	if err != nil || n == 0 {
+		return path
+	}
+	if n > uint32(len(buf)) {
+		buf = make([]uint16, n)
+		n, err = windows.GetLongPathName(p, &buf[0], uint32(len(buf)))
+		if err != nil || n == 0 || n >= uint32(len(buf)) {
+			return path
+		}
+	}
+	return windows.UTF16ToString(buf[:n])
 }
 
 func (s *Store) StoreDir() string {
