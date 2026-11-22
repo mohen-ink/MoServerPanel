@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-22
+
+### Added
+- **GitHub 自动更新**：支持在 WebUI「面板设置 → 软件更新」或通过命令行 `mo-server-panel.exe update [--check]` 从 GitHub Releases 检查并一键更新；下载过程显示实时进度，自动完成 PE 头与 `SHA256SUMS.txt` 完整性校验、新版本自检、Windows 安全原子替换及服务/前台平滑重启，并在重启后自动清理旧版 `.old` 文件。
+- SSH / SFTP 与网页终端支持自定义**默认工作目录**，默认落在 `C:\ssh-tmp`（目录不存在时自动创建），避免 Windows 服务模式下落入 `C:\Windows\system32\config\systemprofile` 或 `System32`。
+
 ## [0.1.0] - 2026-11-22
 
 ### Added
@@ -24,5 +30,6 @@
 - 修复内置 SSH `exec` 命令在客户端未关闭 stdin 时等待 EOF 导致的超时死锁问题，并改用 PowerShell `-EncodedCommand` 执行命令。
 - 修复 Windows 8.3 短路径（如 `RUNNER~1` / `PROGRA~1`）导致内嵌 Nginx 校验与启动失败的问题，初始化数据目录与自定义 Nginx 目录时自动展开为完整长路径。
 
-[Unreleased]: https://github.com/mohen-ink/MoServerPanel/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/mohen-ink/MoServerPanel/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/mohen-ink/MoServerPanel/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/mohen-ink/MoServerPanel/releases/tag/v0.1.0
