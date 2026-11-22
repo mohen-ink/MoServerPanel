@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-11-22
+
+### Fixed
+- **修复自更新后台重启失败与设置页循环刷新**：移除 `spawnDetachedPowerShell` 中与 `CREATE_NO_WINDOW` 冲突导致 PowerShell 静默退出的 `DETACHED_PROCESS` 标志，改用 `-ExecutionPolicy Bypass -EncodedCommand` 执行重启脚本并增加服务启动重试与 30 秒超时兜底；前端重连检测改为严格校验 `/api/auth/status` 返回版本与目标版本一致后才提示成功并刷新页面，彻底避免旧进程未重启时每次进入「面板设置」反复刷新。
+
 ## [0.1.3] - 2026-11-22
 
 ### Added
@@ -43,7 +48,8 @@
 - 修复内置 SSH `exec` 命令在客户端未关闭 stdin 时等待 EOF 导致的超时死锁问题，并改用 PowerShell `-EncodedCommand` 执行命令。
 - 修复 Windows 8.3 短路径（如 `RUNNER~1` / `PROGRA~1`）导致内嵌 Nginx 校验与启动失败的问题，初始化数据目录与自定义 Nginx 目录时自动展开为完整长路径。
 
-[Unreleased]: https://github.com/mohen-ink/MoServerPanel/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/mohen-ink/MoServerPanel/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/mohen-ink/MoServerPanel/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/mohen-ink/MoServerPanel/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/mohen-ink/MoServerPanel/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/mohen-ink/MoServerPanel/compare/v0.1.0...v0.1.1

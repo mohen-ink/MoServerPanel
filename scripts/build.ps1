@@ -1,6 +1,6 @@
 param(
     [string]$Output = "$PSScriptRoot\..\mo-server-panel.exe",
-    [string]$Version = "0.1.3",
+    [string]$Version = "0.1.4",
     [switch]$SkipFrontend,
     [switch]$SkipNginxFetch
 )
