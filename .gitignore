@@ -1,0 +1,20 @@
+# Binaries & build outputs
+*.exe
+*.dll
+*.so
+*.dylib
+dist/
+build/
+
+# Embedded third-party downloads (fetched by scripts/fetch-nginx.ps1)
+internal/nginx/embed/nginx.zip
+
+# Frontend build & deps
+web/node_modules/
+web/dist/
+!web/dist/.gitkeep
+
+# Runtime & test data
+data/
+.tmp-test-data/
+*.log
