@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -35,6 +36,7 @@ func TestEmbeddedSSHAndSFTP(t *testing.T) {
 	limiter := auth.NewRateLimiter(5, 5*time.Minute, 10*time.Minute)
 	mgr := NewManager(store, limiter)
 
+	workDir := filepath.Join(tmpDir, "ssh-work")
 	port := getFreePort(t)
 	if err := mgr.UpdateConfig(UpdateConfigInput{
 		ListenAddr:   "127.0.0.1",
@@ -42,9 +44,23 @@ func TestEmbeddedSSHAndSFTP(t *testing.T) {
 		Username:     "testuser",
 		Password:     "TestSshPass99",
 		DefaultShell: "cmd",
+		WorkDir:      workDir,
 		EnableSFTP:   true,
 	}); err != nil {
 		t.Fatalf("UpdateConfig: %v", err)
+	}
+	if st := mgr.Status(); st.WorkDir != workDir {
+		t.Fatalf("Status().WorkDir = %q, want %q", st.WorkDir, workDir)
+	}
+	if err := mgr.UpdateConfig(UpdateConfigInput{
+		ListenAddr:   "127.0.0.1",
+		Port:         port,
+		Username:     "testuser",
+		DefaultShell: "cmd",
+		WorkDir:      "relative/path",
+		EnableSFTP:   true,
+	}); err == nil {
+		t.Fatal("expected error for relative WorkDir")
 	}
 
 	if err := mgr.Start(); err != nil {
@@ -79,12 +95,12 @@ func TestEmbeddedSSHAndSFTP(t *testing.T) {
 	}
 	defer client.Close()
 
-	// 3. Exec command works
+	// 3. Exec command works and runs inside configured WorkDir
 	sess, err := client.NewSession()
 	if err != nil {
 		t.Fatalf("NewSession: %v", err)
 	}
-	out, err := sess.CombinedOutput("echo hello-wsp-ssh")
+	out, err := sess.CombinedOutput("cd && echo hello-wsp-ssh")
 	sess.Close()
 	if err != nil {
 		t.Fatalf("exec failed: %v (out=%s)", err, string(out))
@@ -92,21 +108,23 @@ func TestEmbeddedSSHAndSFTP(t *testing.T) {
 	if !strings.Contains(string(out), "hello-wsp-ssh") {
 		t.Fatalf("unexpected exec output: %q", string(out))
 	}
+	if !strings.Contains(strings.ToLower(string(out)), strings.ToLower(filepath.Base(workDir))) {
+		t.Fatalf("expected exec cwd inside %q, got output: %q", workDir, string(out))
+	}
 
-	// 4. SFTP file write & read works
+	// 4. SFTP file write & read works (relative path lands inside configured WorkDir)
 	sc, err := sftp.NewClient(client)
 	if err != nil {
 		t.Fatalf("sftp.NewClient: %v", err)
 	}
-	testFile := filepath.Join(tmpDir, "sftp_check.txt")
-	f, err := sc.Create(testFile)
+	f, err := sc.Create("sftp_check.txt")
 	if err != nil {
 		t.Fatalf("sftp Create: %v", err)
 	}
 	_, _ = f.Write([]byte("sftp-ok"))
 	_ = f.Close()
 
-	rf, err := sc.Open(testFile)
+	rf, err := sc.Open("sftp_check.txt")
 	if err != nil {
 		t.Fatalf("sftp Open: %v", err)
 	}
@@ -115,6 +133,9 @@ func TestEmbeddedSSHAndSFTP(t *testing.T) {
 	_ = sc.Close()
 	if string(readBytes) != "sftp-ok" {
 		t.Fatalf("unexpected SFTP read content: %q", string(readBytes))
+	}
+	if _, err := os.Stat(filepath.Join(workDir, "sftp_check.txt")); err != nil {
+		t.Fatalf("expected SFTP relative file inside %q: %v", workDir, err)
 	}
 
 	// 5. Session tracking & Kick works
@@ -128,7 +149,8 @@ func TestEmbeddedSSHAndSFTP(t *testing.T) {
 }
 
 func TestSSHExecDoesNotDeadlockWhenClientKeepsStdinOpen(t *testing.T) {
-	store, err := config.NewStore(t.TempDir())
+	tmpDir := t.TempDir()
+	store, err := config.NewStore(tmpDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,6 +164,7 @@ func TestSSHExecDoesNotDeadlockWhenClientKeepsStdinOpen(t *testing.T) {
 		Username:     "ops",
 		Password:     "OpsPass123",
 		DefaultShell: "powershell",
+		WorkDir:      filepath.Join(tmpDir, "ops-work"),
 		EnableSFTP:   false,
 	}); err != nil {
 		t.Fatal(err)

@@ -17,6 +17,7 @@ import (
 	"win-server-panel/internal/nginx"
 	"win-server-panel/internal/sshserver"
 	"win-server-panel/internal/sysinfo"
+	"win-server-panel/internal/updater"
 	"win-server-panel/web"
 )
 
@@ -29,6 +30,7 @@ type Server struct {
 	nginxMgr  *nginx.Manager
 	acmeMgr   *acme.Manager
 	sshMgr    *sshserver.Manager
+	updater   *updater.Manager
 	mux       *http.ServeMux
 }
 
@@ -41,6 +43,7 @@ func NewServer(
 	nginxMgr *nginx.Manager,
 	acmeMgr *acme.Manager,
 	sshMgr *sshserver.Manager,
+	updaterMgr *updater.Manager,
 ) *Server {
 	s := &Server{
 		version:  version,
@@ -51,6 +54,7 @@ func NewServer(
 		nginxMgr: nginxMgr,
 		acmeMgr:  acmeMgr,
 		sshMgr:   sshMgr,
+		updater:  updaterMgr,
 		mux:      http.NewServeMux(),
 	}
 	s.registerRoutes()
@@ -77,6 +81,11 @@ func (s *Server) registerRoutes() {
 	s.mux.Handle("GET /api/dashboard", s.requireAuth(http.HandlerFunc(s.handleDashboard)))
 	s.mux.Handle("GET /api/settings", s.requireAuth(http.HandlerFunc(s.handleGetSettings)))
 	s.mux.Handle("PUT /api/settings", s.requireAuth(http.HandlerFunc(s.handleUpdateSettings)))
+
+	// Self-update (GitHub Releases)
+	s.mux.Handle("GET /api/update/check", s.requireAuth(http.HandlerFunc(s.handleUpdateCheck)))
+	s.mux.Handle("GET /api/update/status", s.requireAuth(http.HandlerFunc(s.handleUpdateStatus)))
+	s.mux.Handle("POST /api/update/apply", s.requireAuth(http.HandlerFunc(s.handleUpdateApply)))
 
 	// Firewall
 	s.mux.Handle("GET /api/firewall/rules", s.requireAuth(http.HandlerFunc(s.handleListFirewallRules)))

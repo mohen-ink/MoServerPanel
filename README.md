@@ -48,6 +48,9 @@
 
 # 忘记面板密码时在服务器本地重置
 .\mo-server-panel.exe reset-password --password YourNewPassword123
+
+# 从 GitHub Releases 检查并自动更新（支持 --check 仅检查）
+.\mo-server-panel.exe update
 ```
 
 首次启动后访问 `http://<服务器IP>:8900`，按引导完成管理员账号初始化即可使用。

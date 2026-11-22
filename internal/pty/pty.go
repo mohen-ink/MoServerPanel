@@ -5,12 +5,15 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
 
 	"github.com/UserExistsError/conpty"
 )
+
+const DefaultWorkDirPath = `C:\ssh-tmp`
 
 type Terminal interface {
 	io.ReadWriteCloser
@@ -28,8 +31,32 @@ func ShellCommand(shell string) string {
 }
 
 func DefaultWorkDir() string {
-	if home, err := os.UserHomeDir(); err == nil && home != "" {
-		return home
+	return ResolveWorkDir("")
+}
+
+// ResolveWorkDir returns a usable working directory for interactive terminals, SSH exec, and SFTP.
+// When configured is empty, it defaults to DefaultWorkDirPath (C:\ssh-tmp) and creates it automatically.
+func ResolveWorkDir(configured string) string {
+	candidates := make([]string, 0, 4)
+	if trimmed := strings.TrimSpace(configured); trimmed != "" {
+		candidates = append(candidates, filepath.Clean(trimmed))
+	}
+	candidates = append(candidates, DefaultWorkDirPath)
+	if home, err := os.UserHomeDir(); err == nil && home != "" &&
+		!strings.Contains(strings.ToLower(home), "systemprofile") {
+		candidates = append(candidates, home)
+	}
+	candidates = append(candidates, `C:\`)
+
+	for _, dir := range candidates {
+		if fi, err := os.Stat(dir); err == nil && fi.IsDir() {
+			return dir
+		}
+		if err := os.MkdirAll(dir, 0o755); err == nil {
+			if fi, err := os.Stat(dir); err == nil && fi.IsDir() {
+				return dir
+			}
+		}
 	}
 	return `C:\`
 }

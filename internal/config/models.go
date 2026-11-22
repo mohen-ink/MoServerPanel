@@ -31,6 +31,7 @@ type SSHConfig struct {
 	Username     string `json:"username"`
 	PasswordHash string `json:"passwordHash"`
 	DefaultShell string `json:"defaultShell"` // "powershell" or "cmd"
+	WorkDir      string `json:"workDir"`      // default working directory for SSH/SFTP/Web Terminal
 	EnableSFTP   bool   `json:"enableSftp"`
 }
 
@@ -105,6 +106,7 @@ func DefaultPanelConfig(jwtSecret string) PanelConfig {
 			Port:         2222,
 			Username:     "admin",
 			DefaultShell: "powershell",
+			WorkDir:      `C:\ssh-tmp`,
 			EnableSFTP:   true,
 		},
 	}

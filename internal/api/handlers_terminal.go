@@ -56,7 +56,8 @@ func (s *Server) handleTerminalWS(w http.ResponseWriter, r *http.Request) {
 	}
 	defer ws.Close()
 
-	term, err := pty.Start(shell, cols, rows, pty.DefaultWorkDir())
+	workDir := pty.ResolveWorkDir(s.store.GetConfig().SSH.WorkDir)
+	term, err := pty.Start(shell, cols, rows, workDir)
 	if err != nil {
 		_ = ws.WriteMessage(websocket.TextMessage, []byte("Failed to start terminal: "+err.Error()+"\r\n"))
 		return

@@ -134,6 +134,7 @@ export interface SSHStatus {
   username: string;
   passwordSet: boolean;
   defaultShell: string;
+  workDir: string;
   enableSftp: boolean;
   activeSessions: number;
   hostFingerprint: string;
@@ -172,6 +173,31 @@ export interface SettingsData {
   version: string;
   isAdmin: boolean;
   serviceStatus: string;
+}
+
+export interface UpdateCheckResult {
+  currentVersion: string;
+  latestVersion: string;
+  tagName: string;
+  hasUpdate: boolean;
+  releaseName: string;
+  releaseNotes: string;
+  releaseUrl: string;
+  publishedAt: string;
+  assetName: string;
+  assetSize: number;
+  hasChecksum: boolean;
+}
+
+export interface UpdateStatus {
+  state: 'idle' | 'downloading' | 'verifying' | 'replacing' | 'restarting' | 'done' | 'error';
+  targetVersion?: string;
+  downloadedBytes: number;
+  totalBytes: number;
+  percent: number;
+  message?: string;
+  error?: string;
+  restartMode?: string;
 }
 
 export class ApiError extends Error {
@@ -328,6 +354,7 @@ export const api = {
     username: string;
     password?: string;
     defaultShell: string;
+    workDir: string;
     enableSftp: boolean;
   }) =>
     request<SSHStatus>('/api/ssh/config', {
@@ -338,6 +365,11 @@ export const api = {
   sshStop: () => request<SSHStatus>('/api/ssh/stop', { method: 'POST' }),
   sshKickSession: (id: string) =>
     request<{ ok: boolean }>(`/api/ssh/sessions/${id}/kick`, { method: 'POST' }),
+
+  // Self-update (GitHub Releases)
+  updateCheck: () => request<UpdateCheckResult>('/api/update/check'),
+  updateStatus: () => request<UpdateStatus>('/api/update/status'),
+  updateApply: () => request<UpdateStatus>('/api/update/apply', { method: 'POST' }),
 };
 
 export function formatBytes(bytes: number): string {

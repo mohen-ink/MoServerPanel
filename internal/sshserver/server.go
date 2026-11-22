@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -19,6 +20,7 @@ import (
 
 	"win-server-panel/internal/auth"
 	"win-server-panel/internal/config"
+	"win-server-panel/internal/pty"
 )
 
 type Status struct {
@@ -30,6 +32,7 @@ type Status struct {
 	Username        string        `json:"username"`
 	PasswordSet     bool          `json:"passwordSet"`
 	DefaultShell    string        `json:"defaultShell"`
+	WorkDir         string        `json:"workDir"`
 	EnableSFTP      bool          `json:"enableSftp"`
 	ActiveSessions  int           `json:"activeSessions"`
 	HostFingerprint string        `json:"hostFingerprint"`
@@ -51,6 +54,7 @@ type UpdateConfigInput struct {
 	Username     string `json:"username"`
 	Password     string `json:"password"` // optional: empty keeps existing password
 	DefaultShell string `json:"defaultShell"`
+	WorkDir      string `json:"workDir"`
 	EnableSFTP   bool   `json:"enableSftp"`
 }
 
@@ -212,6 +216,23 @@ func (m *Manager) UpdateConfig(in UpdateConfigInput) error {
 		shell = "powershell"
 	}
 
+	workDir := strings.TrimSpace(in.WorkDir)
+	if workDir == "" {
+		workDir = pty.DefaultWorkDirPath
+	} else {
+		if !filepath.IsAbs(workDir) {
+			return errors.New(`默认工作目录必须是绝对路径，例如 C:\ssh-tmp`)
+		}
+		workDir = filepath.Clean(workDir)
+		if err := os.MkdirAll(workDir, 0o755); err != nil {
+			return fmt.Errorf("无法创建默认工作目录 %s: %w", workDir, err)
+		}
+		fi, err := os.Stat(workDir)
+		if err != nil || !fi.IsDir() {
+			return fmt.Errorf("默认工作目录无效或不是文件夹: %s", workDir)
+		}
+	}
+
 	var newHash string
 	if in.Password != "" {
 		if len(in.Password) < 6 {
@@ -234,6 +255,7 @@ func (m *Manager) UpdateConfig(in UpdateConfigInput) error {
 			c.SSH.PasswordHash = newHash
 		}
 		c.SSH.DefaultShell = shell
+		c.SSH.WorkDir = workDir
 		c.SSH.EnableSFTP = in.EnableSFTP
 		return nil
 	}); err != nil {
@@ -255,6 +277,10 @@ func (m *Manager) Status() Status {
 	m.mu.Unlock()
 
 	cfg := m.store.GetConfig().SSH
+	workDir := strings.TrimSpace(cfg.WorkDir)
+	if workDir == "" {
+		workDir = pty.DefaultWorkDirPath
+	}
 	sessions := m.ListSessions()
 	return Status{
 		Running:         running,
@@ -265,6 +291,7 @@ func (m *Manager) Status() Status {
 		Username:        cfg.Username,
 		PasswordSet:     cfg.PasswordHash != "",
 		DefaultShell:    cfg.DefaultShell,
+		WorkDir:         workDir,
 		EnableSFTP:      cfg.EnableSFTP,
 		ActiveSessions:  len(sessions),
 		HostFingerprint: fp,

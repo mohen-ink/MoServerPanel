@@ -22,6 +22,7 @@ import (
 	"win-server-panel/internal/service"
 	"win-server-panel/internal/sshserver"
 	"win-server-panel/internal/sysinfo"
+	"win-server-panel/internal/updater"
 )
 
 var Version = "0.1.0-dev"
@@ -37,6 +38,9 @@ func main() {
 			return
 		case "reset-password":
 			handleResetPasswordCmd(os.Args[2:])
+			return
+		case "update":
+			handleUpdateCmd(os.Args[2:])
 			return
 		case "help", "-h", "--help":
 			printUsage()
@@ -72,6 +76,11 @@ func main() {
 }
 
 func runPanel(ctx context.Context, dataDir, addrOverride string, portOverride int) error {
+	updater.CleanupOldBinary()
+
+	runCtx, cancelRun := context.WithCancel(ctx)
+	defer cancelRun()
+
 	store, err := config.NewStore(dataDir)
 	if err != nil {
 		return fmt.Errorf("init store: %w", err)
@@ -84,6 +93,7 @@ func runPanel(ctx context.Context, dataDir, addrOverride string, portOverride in
 	nginxMgr := nginx.NewManager(store)
 	acmeMgr := acme.NewManager(store, nginxMgr)
 	sshMgr := sshserver.NewManager(store, limiter)
+	updaterMgr := updater.NewManager(Version, cancelRun)
 
 	// Extract embedded Nginx right away so status & version are immediately ready
 	if err := nginxMgr.EnsureReady(); err != nil {
@@ -109,7 +119,7 @@ func runPanel(ctx context.Context, dataDir, addrOverride string, portOverride in
 		}
 	}
 
-	acmeMgr.StartRenewalLoop(ctx)
+	acmeMgr.StartRenewalLoop(runCtx)
 
 	listenAddr := cfg.ListenAddr
 	if addrOverride != "" {
@@ -120,7 +130,7 @@ func runPanel(ctx context.Context, dataDir, addrOverride string, portOverride in
 		port = portOverride
 	}
 
-	srv := api.NewServer(Version, store, authMgr, sysCollector, fwMgr, nginxMgr, acmeMgr, sshMgr)
+	srv := api.NewServer(Version, store, authMgr, sysCollector, fwMgr, nginxMgr, acmeMgr, sshMgr, updaterMgr)
 	httpSrv := &http.Server{
 		Addr:              fmt.Sprintf("%s:%d", listenAddr, port),
 		Handler:           srv.Handler(),
@@ -140,7 +150,7 @@ func runPanel(ctx context.Context, dataDir, addrOverride string, portOverride in
 	select {
 	case err := <-errCh:
 		return err
-	case <-ctx.Done():
+	case <-runCtx.Done():
 		log.Printf("[panel] shutting down gracefully...")
 		sshMgr.Shutdown()
 		_ = nginxMgr.Stop()
@@ -226,6 +236,62 @@ func handleResetPasswordCmd(args []string) {
 	fmt.Println("管理员密码已重置成功！")
 }
 
+func handleUpdateCmd(args []string) {
+	fs := flag.NewFlagSet("update", flag.ExitOnError)
+	checkOnly := fs.Bool("check", false, "Only check for updates without downloading")
+	_ = fs.Parse(args)
+
+	mgr := updater.NewManager(Version, nil)
+	ctx := context.Background()
+
+	fmt.Printf("当前版本: v%s，正在检查 GitHub 最新版本...\n", Version)
+	rel, err := mgr.Check(ctx)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "检查更新失败: %v\n", err)
+		os.Exit(1)
+	}
+
+	if !rel.HasUpdate {
+		fmt.Printf("当前已是最新版本 (v%s)。\n", rel.CurrentVersion)
+		return
+	}
+
+	fmt.Printf("发现新版本: v%s -> v%s\n发布页面: %s\n", rel.CurrentVersion, rel.LatestVersion, rel.ReleaseURL)
+	if *checkOnly {
+		return
+	}
+
+	lastPct := -1
+	err = mgr.ApplyCLI(ctx, rel, func(downloaded, total int64) {
+		if total > 0 {
+			pct := int((downloaded * 100) / total)
+			if pct >= lastPct+10 || pct == 100 {
+				lastPct = pct
+				fmt.Printf("\r正在下载 %s ... %d%% (%.2f / %.2f MB)",
+					rel.AssetName, pct, float64(downloaded)/(1024*1024), float64(total)/(1024*1024))
+			}
+		}
+	})
+	fmt.Println()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "更新失败: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("已成功更新至 v%s（SHA256 校验通过）！\n", rel.LatestVersion)
+	if st, stErr := service.Status(); stErr == nil && st == "running" {
+		fmt.Println("检测到 MoServerPanel Windows 服务正在运行，正在重启服务...")
+		_ = service.Stop()
+		if err := service.Start(); err != nil {
+			fmt.Fprintf(os.Stderr, "重启服务失败，请手动执行 mo-server-panel.exe service start: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("MoServerPanel 服务已重启并运行新版本！")
+	} else {
+		fmt.Println("重新运行 mo-server-panel.exe 即可生效。")
+	}
+}
+
 func resolveDataDir(flagVal string) string {
 	if flagVal != "" {
 		return flagVal
@@ -246,6 +312,7 @@ func printUsage() {
   mo-server-panel.exe [--port 8900] [--addr 0.0.0.0] [--data-dir C:\ProgramData\MoServerPanel]
   mo-server-panel.exe service <install|uninstall|start|stop|status> [--port 8900] [--data-dir C:\ProgramData\MoServerPanel]
   mo-server-panel.exe reset-password --password <newpass> [--username admin] [--data-dir C:\ProgramData\MoServerPanel]
+  mo-server-panel.exe update [--check]
   mo-server-panel.exe version
 `, Version)
 }

@@ -56,8 +56,8 @@ func (m *Manager) handleSessionChannel(sessID string, channel ssh.Channel, reque
 			_ = req.Reply(true, nil)
 			m.updateSessionMode(sessID, "shell")
 
-			shellName := m.store.GetConfig().SSH.DefaultShell
-			t, err := pty.Start(shellName, cols, rows, pty.DefaultWorkDir())
+			sshCfg := m.store.GetConfig().SSH
+			t, err := pty.Start(sshCfg.DefaultShell, cols, rows, pty.ResolveWorkDir(sshCfg.WorkDir))
 			if err != nil {
 				_, _ = io.WriteString(channel.Stderr(), "Failed to start shell: "+err.Error()+"\r\n")
 				sendExitStatus(channel, 1)
@@ -118,7 +118,8 @@ func (m *Manager) handleSessionChannel(sessID string, channel ssh.Channel, reque
 }
 
 func (m *Manager) runExecCommand(command string, channel ssh.Channel) uint32 {
-	shell := strings.ToLower(strings.TrimSpace(m.store.GetConfig().SSH.DefaultShell))
+	sshCfg := m.store.GetConfig().SSH
+	shell := strings.ToLower(strings.TrimSpace(sshCfg.DefaultShell))
 	var cmd *exec.Cmd
 	if shell == "cmd" {
 		cmd = exec.Command("cmd.exe", "/C", command)
@@ -126,7 +127,7 @@ func (m *Manager) runExecCommand(command string, channel ssh.Channel) uint32 {
 		script := "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8\n" + command
 		cmd = exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand", encodePowerShellUTF16LE(script))
 	}
-	cmd.Dir = pty.DefaultWorkDir()
+	cmd.Dir = pty.ResolveWorkDir(sshCfg.WorkDir)
 	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: 0x08000000}
 	cmd.Stdout = channel
 	cmd.Stderr = channel.Stderr()

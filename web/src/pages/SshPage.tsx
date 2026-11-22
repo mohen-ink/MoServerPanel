@@ -39,6 +39,7 @@ export const SshPage: React.FC = () => {
     username: 'admin',
     password: '',
     defaultShell: 'powershell',
+    workDir: 'C:\\ssh-tmp',
     enableSftp: true,
   });
 
@@ -55,6 +56,7 @@ export const SshPage: React.FC = () => {
           username: st.username || 'admin',
           password: '',
           defaultShell: st.defaultShell || 'powershell',
+          workDir: st.workDir || 'C:\\ssh-tmp',
           enableSftp: st.enableSftp,
         });
       }
@@ -78,7 +80,7 @@ export const SshPage: React.FC = () => {
         port: Number(form.port),
       });
       setStatus(res);
-      setForm((prev) => ({ ...prev, password: '' }));
+      setForm((prev) => ({ ...prev, password: '', workDir: res.workDir || 'C:\\ssh-tmp' }));
       showToast('success', 'SSH 配置已保存');
     } catch (err: any) {
       showToast('error', err.message);
@@ -219,6 +221,19 @@ export const SshPage: React.FC = () => {
                     <option value="powershell">PowerShell (推荐)</option>
                     <option value="cmd">CMD (命令提示符)</option>
                   </Select>
+                </Field>
+
+                <Field
+                  label="默认工作目录"
+                  hint="留空默认 C:\ssh-tmp，目录不存在时自动创建，同时应用于 SSH、SFTP 与网页终端"
+                  className="sm:col-span-2"
+                >
+                  <Input
+                    mono
+                    value={form.workDir}
+                    onChange={(e) => setForm({ ...form, workDir: e.target.value })}
+                    placeholder="C:\ssh-tmp"
+                  />
                 </Field>
 
                 <Field
