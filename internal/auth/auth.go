@@ -13,7 +13,7 @@ import (
 	"win-server-panel/internal/config"
 )
 
-const CookieName = "wsp_token"
+const CookieName = "msp_token"
 
 var (
 	ErrAlreadyInitialized = errors.New("面板已完成初始化")

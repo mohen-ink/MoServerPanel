@@ -115,7 +115,7 @@ export const SshPage: React.FC = () => {
     if (!status) return;
     try {
       await api.createFirewallRule({
-        name: `WinServerPanel-SSH-${status.port}`,
+        name: `MoServerPanel-SSH-${status.port}`,
         protocol: 'TCP',
         port: String(status.port),
         action: 'Allow',

@@ -24,7 +24,7 @@ export const LoginPage: React.FC<{ onSuccess: (username: string) => void }> = ({
   };
 
   return (
-    <AuthLayout title="登录控制台" subtitle="使用管理员账号登录 WinServerPanel">
+    <AuthLayout title="登录控制台" subtitle="使用管理员账号登录 MoServerPanel">
       <form onSubmit={handleSubmit} className="space-y-5">
         <Field label="用户名">
           <Input

@@ -29,7 +29,7 @@ export const AuthLayout: React.FC<{
         <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-brand to-[#6366f1] text-white grid place-items-center shadow-sm">
           <Server className="w-4 h-4" />
         </div>
-        <span className="text-base font-semibold tracking-tight text-white">WinServerPanel</span>
+        <span className="text-base font-semibold tracking-tight text-white">MoServerPanel</span>
       </div>
 
       <div className="relative my-auto py-12">
@@ -57,7 +57,7 @@ export const AuthLayout: React.FC<{
         </div>
       </div>
 
-      <div className="relative text-xs text-zinc-500">© WinServerPanel</div>
+      <div className="relative text-xs text-zinc-500">© MoServerPanel</div>
     </div>
 
     {/* Right Form Area */}
@@ -67,7 +67,7 @@ export const AuthLayout: React.FC<{
           <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-brand to-[#6366f1] text-white grid place-items-center shadow-sm">
             <Server className="w-4 h-4" />
           </div>
-          <span className="text-base font-semibold tracking-tight text-fg">WinServerPanel</span>
+          <span className="text-base font-semibold tracking-tight text-fg">MoServerPanel</span>
         </div>
 
         <h1 className="text-2xl font-semibold tracking-tight text-fg">{title}</h1>

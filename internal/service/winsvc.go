@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	ServiceName = "WinServerPanel"
-	DisplayName = "WinServerPanel Lightweight Management Panel"
+	ServiceName = "MoServerPanel"
+	DisplayName = "MoServerPanel Lightweight Management Panel"
 	Description = "Lightweight Windows server management panel (Firewall, Nginx Reverse Proxy, Built-in SSH/SFTP)."
 )
 

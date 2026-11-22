@@ -92,7 +92,7 @@ export default function App() {
         </div>
         <div className="flex items-center gap-2 text-[13px] text-fg-3">
           <Loader2 className="w-4 h-4 animate-spin" />
-          <span>正在连接 WinServerPanel...</span>
+          <span>正在连接 MoServerPanel...</span>
         </div>
       </div>
     );
@@ -142,7 +142,7 @@ export default function App() {
           </div>
           <div className="min-w-0">
             <div className="text-sm font-semibold tracking-tight text-fg truncate">
-              WinServerPanel
+              MoServerPanel
             </div>
             <div className="text-[11px] text-fg-3 leading-none mt-0.5">
               v{auth.version || '0.1.0'}
@@ -243,7 +243,7 @@ export default function App() {
               onClick={() => setMobileNavOpen(true)}
               className="lg:hidden mr-1"
             />
-            <span className="text-fg-3 hidden sm:inline">WinServerPanel</span>
+            <span className="text-fg-3 hidden sm:inline">MoServerPanel</span>
             <ChevronRight className="w-3.5 h-3.5 text-fg-3 hidden sm:inline shrink-0" />
             <span className="text-fg font-medium truncate">{currentItem.label}</span>
           </div>

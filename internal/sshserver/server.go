@@ -93,7 +93,7 @@ func (m *Manager) ensureHostKeyLocked() error {
 		if genErr != nil {
 			return fmt.Errorf("生成 SSH 主机密钥失败: %w", genErr)
 		}
-		block, marshalErr := ssh.MarshalPrivateKey(priv, "WinServerPanel SSH Host Key")
+		block, marshalErr := ssh.MarshalPrivateKey(priv, "MoServerPanel SSH Host Key")
 		if marshalErr != nil {
 			return fmt.Errorf("编码 SSH 主机密钥失败: %w", marshalErr)
 		}
@@ -321,7 +321,7 @@ func (m *Manager) acceptLoop(ln net.Listener) {
 
 func (m *Manager) buildSSHConfig() *ssh.ServerConfig {
 	cfg := &ssh.ServerConfig{
-		ServerVersion: "SSH-2.0-WinServerPanel",
+		ServerVersion: "SSH-2.0-MoServerPanel",
 		PasswordCallback: func(c ssh.ConnMetadata, pass []byte) (*ssh.Permissions, error) {
 			ip := extractIP(c.RemoteAddr())
 			if banned, _ := m.limiter.IsBanned("ssh", ip); banned {

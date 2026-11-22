@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	RuleGroup  = "WinServerPanel"
-	RulePrefix = "WSP-"
+	RuleGroup  = "MoServerPanel"
+	RulePrefix = "MSP-"
 )
 
 var (
@@ -355,10 +355,10 @@ func (m *Manager) applyWinRule(ctx context.Context, rule config.FirewallRule) er
 	script.WriteString("$ErrorActionPreference = 'Stop'\n")
 	for _, p := range protos {
 		winName := rule.WinRuleName
-		displayName := fmt.Sprintf("[WSP] %s", rule.Name)
+		displayName := fmt.Sprintf("[MSP] %s", rule.Name)
 		if len(protos) > 1 {
 			winName = rule.WinRuleName + "-" + p
-			displayName = fmt.Sprintf("[WSP] %s (%s)", rule.Name, p)
+			displayName = fmt.Sprintf("[MSP] %s (%s)", rule.Name, p)
 		}
 		script.WriteString(fmt.Sprintf(
 			"New-NetFirewallRule -Name %s -DisplayName %s -Group %s -Direction Inbound -Action %s -Protocol %s -LocalPort %s -RemoteAddress %s -Enabled %s -Profile Any -Description %s | Out-Null\n",
@@ -422,7 +422,7 @@ $rules = Get-NetFirewallRule -Direction Inbound | ForEach-Object {
         protocol = $pr
         localPort = $lp
         remoteAddress = $ra
-        managed = ($_.Group -eq 'WinServerPanel' -or $_.Name -like 'WSP-*')
+        managed = ($_.Group -eq 'MoServerPanel' -or $_.Name -like 'MSP-*')
     }
 }
 $rules | ConvertTo-Json -Compress

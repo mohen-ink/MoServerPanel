@@ -34,7 +34,7 @@ export const SetupPage: React.FC<{ onDone: (username: string) => void }> = ({ on
   };
 
   return (
-    <AuthLayout title="初始化管理员账号" subtitle="设置 WinServerPanel 管理员账号">
+    <AuthLayout title="初始化管理员账号" subtitle="设置 MoServerPanel 管理员账号">
       <form onSubmit={handleSubmit} className="space-y-5">
         <Field label="管理员用户名">
           <Input

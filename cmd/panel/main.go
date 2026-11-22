@@ -30,7 +30,7 @@ func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "version", "-v", "--version":
-			fmt.Printf("WinServerPanel v%s\n", Version)
+			fmt.Printf("MoServerPanel v%s\n", Version)
 			return
 		case "service":
 			handleServiceCmd(os.Args[2:])
@@ -47,7 +47,7 @@ func main() {
 	fs := flag.NewFlagSet("run", flag.ExitOnError)
 	portFlag := fs.Int("port", 0, "Override panel listen port")
 	addrFlag := fs.String("addr", "", "Override panel listen address")
-	dataDirFlag := fs.String("data-dir", "", "Data directory path (default: <exe_dir>/data)")
+	dataDirFlag := fs.String("data-dir", "", `Data directory path (default: %ProgramData%\MoServerPanel)`)
 	_ = fs.Parse(os.Args[1:])
 
 	dataDir := resolveDataDir(*dataDirFlag)
@@ -129,7 +129,7 @@ func runPanel(ctx context.Context, dataDir, addrOverride string, portOverride in
 
 	errCh := make(chan error, 1)
 	go func() {
-		log.Printf("[panel] WinServerPanel v%s listening on http://%s (dataDir=%s, admin=%v)",
+		log.Printf("[panel] MoServerPanel v%s listening on http://%s (dataDir=%s, admin=%v)",
 			Version, httpSrv.Addr, dataDir, sysinfo.IsElevated())
 		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
@@ -153,7 +153,7 @@ func runPanel(ctx context.Context, dataDir, addrOverride string, portOverride in
 
 func handleServiceCmd(args []string) {
 	if len(args) == 0 {
-		fmt.Println("Usage: win-server-panel.exe service <install|uninstall|start|stop|status> [--port 8900] [--data-dir path]")
+		fmt.Println("Usage: mo-server-panel.exe service <install|uninstall|start|stop|status> [--port 8900] [--data-dir path]")
 		os.Exit(1)
 	}
 	action := args[0]
@@ -167,29 +167,29 @@ func handleServiceCmd(args []string) {
 	case "install":
 		err = service.Install(*port, resolveDataDir(*dataDir))
 		if err == nil {
-			fmt.Println("WinServerPanel Windows 服务安装并启动成功！")
+			fmt.Println("MoServerPanel Windows 服务安装并启动成功！")
 		}
 	case "uninstall":
 		err = service.Uninstall()
 		if err == nil {
-			fmt.Println("WinServerPanel Windows 服务已卸载。")
+			fmt.Println("MoServerPanel Windows 服务已卸载。")
 		}
 	case "start":
 		err = service.Start()
 		if err == nil {
-			fmt.Println("WinServerPanel 服务已启动。")
+			fmt.Println("MoServerPanel 服务已启动。")
 		}
 	case "stop":
 		err = service.Stop()
 		if err == nil {
-			fmt.Println("WinServerPanel 服务已停止。")
+			fmt.Println("MoServerPanel 服务已停止。")
 		}
 	case "status":
 		st, stErr := service.Status()
 		if stErr != nil {
 			err = stErr
 		} else {
-			fmt.Printf("WinServerPanel 服务状态: %s\n", st)
+			fmt.Printf("MoServerPanel 服务状态: %s\n", st)
 		}
 	default:
 		fmt.Printf("未知 service 子命令: %s\n", action)
@@ -230,22 +230,22 @@ func resolveDataDir(flagVal string) string {
 	if flagVal != "" {
 		return flagVal
 	}
-	if env := os.Getenv("WSP_DATA_DIR"); env != "" {
+	if env := os.Getenv("MSP_DATA_DIR"); env != "" {
 		return env
 	}
-	if exe, err := os.Executable(); err == nil {
-		return filepath.Join(filepath.Dir(exe), "data")
+	if programData := os.Getenv("ProgramData"); programData != "" {
+		return filepath.Join(programData, "MoServerPanel")
 	}
-	return "data"
+	return `C:\ProgramData\MoServerPanel`
 }
 
 func printUsage() {
-	fmt.Printf(`WinServerPanel v%s - 轻量级 Windows 服务器管理面板
+	fmt.Printf(`MoServerPanel v%s - 轻量级 Windows 服务器管理面板
 
 用法:
-  win-server-panel.exe [--port 8900] [--addr 0.0.0.0] [--data-dir ./data]
-  win-server-panel.exe service <install|uninstall|start|stop|status> [--port 8900] [--data-dir ./data]
-  win-server-panel.exe reset-password --password <newpass> [--username admin] [--data-dir ./data]
-  win-server-panel.exe version
+  mo-server-panel.exe [--port 8900] [--addr 0.0.0.0] [--data-dir C:\ProgramData\MoServerPanel]
+  mo-server-panel.exe service <install|uninstall|start|stop|status> [--port 8900] [--data-dir C:\ProgramData\MoServerPanel]
+  mo-server-panel.exe reset-password --password <newpass> [--username admin] [--data-dir C:\ProgramData\MoServerPanel]
+  mo-server-panel.exe version
 `, Version)
 }

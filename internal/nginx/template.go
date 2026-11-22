@@ -10,7 +10,7 @@ import (
 	"win-server-panel/internal/config"
 )
 
-const masterConfTemplate = `# Managed by WinServerPanel - DO NOT EDIT MANUALLY
+const masterConfTemplate = `# Managed by MoServerPanel - DO NOT EDIT MANUALLY
 worker_processes  auto;
 
 error_log  logs/error.log warn;

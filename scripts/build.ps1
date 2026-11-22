@@ -1,5 +1,5 @@
 param(
-    [string]$Output = "$PSScriptRoot\..\win-server-panel.exe",
+    [string]$Output = "$PSScriptRoot\..\mo-server-panel.exe",
     [string]$Version = "0.1.0",
     [switch]$SkipFrontend,
     [switch]$SkipNginxFetch

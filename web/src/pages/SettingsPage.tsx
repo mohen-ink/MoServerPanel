@@ -173,7 +173,7 @@ export const SettingsPage: React.FC = () => {
               <div className="text-xs text-fg-3 pt-1">
                 如忘记密码，可在服务器本地运行：
                 <code className="block mt-1.5 px-2.5 py-1.5 rounded-md bg-surface-2 border border-line text-fg font-mono">
-                  win-server-panel.exe reset-password --password 新密码
+                  mo-server-panel.exe reset-password --password 新密码
                 </code>
               </div>
             </form>

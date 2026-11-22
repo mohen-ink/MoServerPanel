@@ -724,7 +724,7 @@ export const AdminBanner: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => {
     <Alert tone="warning" title="当前未以管理员权限运行">
       修改 Windows 防火墙规则或绑定 80/443 低端口需要管理员权限。建议以管理员身份运行，或使用{' '}
       <code className="px-1.5 py-0.5 rounded bg-warning/15 font-mono text-xs text-fg">
-        win-server-panel.exe service install
+        mo-server-panel.exe service install
       </code>{' '}
       安装为 Windows 系统服务。
     </Alert>
