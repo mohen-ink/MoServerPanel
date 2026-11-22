@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"win-server-panel/internal/config"
+	"win-server-panel/internal/netproxy"
 	"win-server-panel/internal/service"
 	"win-server-panel/internal/sysinfo"
 )
@@ -54,14 +55,46 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 	cfg := s.store.GetConfig()
 	svcStatus, _ := service.Status()
+	detectedProxy, detectedSource := netproxy.DetectSystemProxy()
 	writeJSON(w, http.StatusOK, map[string]any{
-		"listenAddr":    cfg.ListenAddr,
-		"port":          cfg.Port,
-		"username":      cfg.Auth.Username,
-		"dataDir":       s.store.DataDir(),
-		"version":       s.version,
-		"isAdmin":       sysinfo.IsElevated(),
-		"serviceStatus": svcStatus,
+		"listenAddr":                cfg.ListenAddr,
+		"port":                      cfg.Port,
+		"username":                  cfg.Auth.Username,
+		"dataDir":                   s.store.DataDir(),
+		"version":                   s.version,
+		"isAdmin":                   sysinfo.IsElevated(),
+		"serviceStatus":             svcStatus,
+		"proxy":                     cfg.Proxy,
+		"detectedSystemProxy":       detectedProxy,
+		"detectedSystemProxySource": detectedSource,
+	})
+}
+
+func (s *Server) handleUpdateProxySettings(w http.ResponseWriter, r *http.Request) {
+	var req config.ProxyConfig
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "请求参数格式错误")
+		return
+	}
+	validated, err := netproxy.Validate(req)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := s.store.UpdateConfig(func(c *config.PanelConfig) error {
+		c.Proxy = validated
+		return nil
+	}); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if s.updater != nil {
+		s.updater.ResetConnections()
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":      true,
+		"proxy":   validated,
+		"message": "代理设置已保存并立即生效",
 	})
 }
 

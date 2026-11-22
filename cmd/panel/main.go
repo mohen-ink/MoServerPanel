@@ -18,6 +18,7 @@ import (
 	"win-server-panel/internal/auth"
 	"win-server-panel/internal/config"
 	"win-server-panel/internal/firewall"
+	"win-server-panel/internal/netproxy"
 	"win-server-panel/internal/nginx"
 	"win-server-panel/internal/service"
 	"win-server-panel/internal/sshserver"
@@ -94,6 +95,9 @@ func runPanel(ctx context.Context, dataDir, addrOverride string, portOverride in
 	acmeMgr := acme.NewManager(store, nginxMgr)
 	sshMgr := sshserver.NewManager(store, limiter)
 	updaterMgr := updater.NewManager(Version, cancelRun)
+	updaterMgr.SetProxyProvider(func() config.ProxyConfig {
+		return store.GetConfig().Proxy
+	})
 
 	// Extract embedded Nginx right away so status & version are immediately ready
 	if err := nginxMgr.EnsureReady(); err != nil {
@@ -239,9 +243,22 @@ func handleResetPasswordCmd(args []string) {
 func handleUpdateCmd(args []string) {
 	fs := flag.NewFlagSet("update", flag.ExitOnError)
 	checkOnly := fs.Bool("check", false, "Only check for updates without downloading")
+	proxyFlag := fs.String("proxy", "", "Optional proxy URL (e.g. http://127.0.0.1:7897 or socks5://127.0.0.1:7897)")
+	dataDirFlag := fs.String("data-dir", "", "Data directory path")
 	_ = fs.Parse(args)
 
 	mgr := updater.NewManager(Version, nil)
+	if *proxyFlag != "" {
+		validated, err := netproxy.Validate(config.ProxyConfig{Mode: "custom", URL: *proxyFlag})
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "代理参数错误: %v\n", err)
+			os.Exit(1)
+		}
+		mgr.SetProxyProvider(func() config.ProxyConfig { return validated })
+	} else if st, err := config.NewStore(resolveDataDir(*dataDirFlag)); err == nil {
+		proxyCfg := st.GetConfig().Proxy
+		mgr.SetProxyProvider(func() config.ProxyConfig { return proxyCfg })
+	}
 	ctx := context.Background()
 
 	fmt.Printf("当前版本: v%s，正在检查 GitHub 最新版本...\n", Version)

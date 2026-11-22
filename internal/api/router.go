@@ -81,6 +81,7 @@ func (s *Server) registerRoutes() {
 	s.mux.Handle("GET /api/dashboard", s.requireAuth(http.HandlerFunc(s.handleDashboard)))
 	s.mux.Handle("GET /api/settings", s.requireAuth(http.HandlerFunc(s.handleGetSettings)))
 	s.mux.Handle("PUT /api/settings", s.requireAuth(http.HandlerFunc(s.handleUpdateSettings)))
+	s.mux.Handle("PUT /api/settings/proxy", s.requireAuth(http.HandlerFunc(s.handleUpdateProxySettings)))
 
 	// Self-update (GitHub Releases)
 	s.mux.Handle("GET /api/update/check", s.requireAuth(http.HandlerFunc(s.handleUpdateCheck)))

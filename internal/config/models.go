@@ -8,6 +8,12 @@ type PanelConfig struct {
 	Auth       AuthConfig    `json:"auth"`
 	Nginx      NginxSettings `json:"nginx"`
 	SSH        SSHConfig     `json:"ssh"`
+	Proxy      ProxyConfig   `json:"proxy"`
+}
+
+type ProxyConfig struct {
+	Mode string `json:"mode"` // "auto", "custom", "direct"
+	URL  string `json:"url"`  // e.g. "http://127.0.0.1:7897" or "socks5://127.0.0.1:7897"
 }
 
 type AuthConfig struct {
@@ -121,6 +127,9 @@ func DefaultPanelConfig(jwtSecret string) PanelConfig {
 			DefaultShell: "powershell",
 			WorkDir:      `C:\ssh-tmp`,
 			EnableSFTP:   true,
+		},
+		Proxy: ProxyConfig{
+			Mode: "auto",
 		},
 	}
 }

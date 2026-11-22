@@ -178,6 +178,11 @@ export interface DashboardData {
   version: string;
 }
 
+export interface ProxyConfig {
+  mode: 'auto' | 'custom' | 'direct';
+  url: string;
+}
+
 export interface SettingsData {
   listenAddr: string;
   port: number;
@@ -186,6 +191,9 @@ export interface SettingsData {
   version: string;
   isAdmin: boolean;
   serviceStatus: string;
+  proxy?: ProxyConfig;
+  detectedSystemProxy?: string;
+  detectedSystemProxySource?: string;
 }
 
 export interface UpdateCheckResult {
@@ -281,6 +289,11 @@ export const api = {
     request<{ ok: boolean; message: string }>('/api/settings', {
       method: 'PUT',
       body: JSON.stringify({ listenAddr, port }),
+    }),
+  updateProxySettings: (mode: 'auto' | 'custom' | 'direct', url: string) =>
+    request<{ ok: boolean; proxy: ProxyConfig; message: string }>('/api/settings/proxy', {
+      method: 'PUT',
+      body: JSON.stringify({ mode, url }),
     }),
 
   // Firewall

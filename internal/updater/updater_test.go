@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"win-server-panel/internal/config"
 )
 
 func TestCompareVersions(t *testing.T) {
@@ -104,5 +106,31 @@ func TestCheckWithMockGitHubAPI(t *testing.T) {
 	}
 	if resSame.HasUpdate {
 		t.Fatalf("expected HasUpdate=false for same version, got %+v", resSame)
+	}
+}
+
+func TestCheckUsesCustomProxy(t *testing.T) {
+	proxyHit := false
+	proxySrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		proxyHit = true
+		_ = json.NewEncoder(w).Encode(githubRelease{
+			TagName: "v0.9.0",
+			Name:    "Proxied Release",
+		})
+	}))
+	defer proxySrv.Close()
+
+	mgr := NewManager("0.1.0", nil)
+	mgr.apiBase = "http://api.github.invalid"
+	mgr.SetProxyProvider(func() config.ProxyConfig {
+		return config.ProxyConfig{Mode: "custom", URL: proxySrv.URL}
+	})
+
+	res, err := mgr.Check(context.Background())
+	if err != nil {
+		t.Fatalf("Check via custom proxy failed: %v", err)
+	}
+	if !proxyHit || !res.HasUpdate || res.LatestVersion != "0.9.0" {
+		t.Fatalf("expected request to route through custom proxy, hit=%v res=%+v", proxyHit, res)
 	}
 }

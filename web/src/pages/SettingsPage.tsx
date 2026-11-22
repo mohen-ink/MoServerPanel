@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   Download,
   ExternalLink,
+  Globe,
   Key,
   RefreshCw,
   Save,
@@ -31,6 +32,7 @@ import {
   Input,
   PageHeader,
   ProgressBar,
+  Select,
   Table,
   TBody,
   Td,
@@ -47,6 +49,9 @@ export const SettingsPage: React.FC = () => {
   const [settings, setSettings] = useState<SettingsData | null>(null);
   const [listenAddr, setListenAddr] = useState('0.0.0.0');
   const [port, setPort] = useState(8900);
+  const [proxyMode, setProxyMode] = useState<'auto' | 'custom' | 'direct'>('auto');
+  const [proxyUrl, setProxyUrl] = useState('');
+  const [savingProxy, setSavingProxy] = useState(false);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [bans, setBans] = useState<BanEntry[]>([]);
@@ -126,6 +131,8 @@ export const SettingsPage: React.FC = () => {
       setSettings(s);
       setListenAddr(s.listenAddr);
       setPort(s.port);
+      setProxyMode(s.proxy?.mode || 'auto');
+      setProxyUrl(s.proxy?.url || '');
       setBans(b.items || []);
       if (u && u.state !== 'idle') {
         setUpdateStatus(u);
@@ -186,6 +193,22 @@ export const SettingsPage: React.FC = () => {
     reconnecting ||
     (!!updateStatus &&
       ['downloading', 'verifying', 'replacing', 'restarting'].includes(updateStatus.state));
+
+  const handleSaveProxy = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingProxy(true);
+    try {
+      const res = await api.updateProxySettings(proxyMode, proxyUrl);
+      setProxyMode(res.proxy.mode);
+      setProxyUrl(res.proxy.url);
+      showToast('success', res.message || '代理设置已保存并立即生效');
+      load();
+    } catch (err: any) {
+      showToast('error', err.message);
+    } finally {
+      setSavingProxy(false);
+    }
+  };
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -322,6 +345,63 @@ export const SettingsPage: React.FC = () => {
             </form>
           </Card>
         </div>
+
+        {/* Network Proxy Settings */}
+        <Card
+          title="网络代理设置"
+          description="用于 GitHub 软件检查更新与下载安装包，保存后立即生效（无需重启面板）"
+          icon={Globe}
+        >
+          <form onSubmit={handleSaveProxy} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Field label="代理模式">
+                <Select
+                  value={proxyMode}
+                  onChange={(e) => setProxyMode(e.target.value as 'auto' | 'custom' | 'direct')}
+                >
+                  <option value="auto">自动（环境变量 + Windows 系统代理）</option>
+                  <option value="custom">手动指定代理地址（Windows 服务模式推荐）</option>
+                  <option value="direct">直连（不使用代理）</option>
+                </Select>
+              </Field>
+
+              {proxyMode === 'custom' && (
+                <Field label="代理地址" required>
+                  <Input
+                    mono
+                    required
+                    value={proxyUrl}
+                    onChange={(e) => setProxyUrl(e.target.value)}
+                    placeholder="http://127.0.0.1:7897 或 socks5://127.0.0.1:7897"
+                  />
+                </Field>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+              <div className="text-xs text-fg-3">
+                {settings?.detectedSystemProxy ? (
+                  <span>
+                    当前检测到系统代理（
+                    {settings.detectedSystemProxySource === 'env' ? '环境变量' : 'Windows 系统设置'}
+                    ）：
+                    <code className="ml-1 px-1.5 py-0.5 rounded bg-surface-2 border border-line text-fg font-mono">
+                      {settings.detectedSystemProxy}
+                    </code>
+                  </span>
+                ) : (
+                  <span>
+                    当前未检测到系统代理（以 Windows 服务运行时无法读取桌面用户的系统代理，建议使用「手动指定代理地址」）。
+                  </span>
+                )}
+              </div>
+
+              <Button type="submit" variant="primary" icon={Save} loading={savingProxy}>
+                保存代理设置
+              </Button>
+            </div>
+          </form>
+        </Card>
 
         {/* GitHub Self-Update */}
         <Card

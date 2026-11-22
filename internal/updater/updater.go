@@ -19,6 +19,8 @@ import (
 	"syscall"
 	"time"
 
+	"win-server-panel/internal/config"
+	"win-server-panel/internal/netproxy"
 	"win-server-panel/internal/service"
 )
 
@@ -89,6 +91,7 @@ type Manager struct {
 	currentVersion string
 	repo           string
 	apiBase        string
+	transport      *http.Transport
 	httpClient     *http.Client
 	shutdownFn     func()
 
@@ -99,10 +102,12 @@ type Manager struct {
 
 func NewManager(currentVersion string, shutdownFn func()) *Manager {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = netproxy.ProxyFunc(nil)
 	return &Manager{
 		currentVersion: strings.TrimPrefix(strings.TrimSpace(currentVersion), "v"),
 		repo:           DefaultRepo,
 		apiBase:        defaultAPIBase,
+		transport:      transport,
 		httpClient: &http.Client{
 			Transport: transport,
 			Timeout:   0, // per-request context timeout used instead so large downloads don't time out abruptly
@@ -112,6 +117,17 @@ func NewManager(currentVersion string, shutdownFn func()) *Manager {
 			State: StateIdle,
 		},
 	}
+}
+
+// SetProxyProvider configures dynamic proxy resolution (evaluated on each request).
+func (m *Manager) SetProxyProvider(fn func() config.ProxyConfig) {
+	m.transport.Proxy = netproxy.ProxyFunc(fn)
+	m.transport.CloseIdleConnections()
+}
+
+// ResetConnections closes idle HTTP connections so proxy configuration changes apply immediately.
+func (m *Manager) ResetConnections() {
+	m.transport.CloseIdleConnections()
 }
 
 // CleanupOldBinary removes the leftover "<exe>.old" binary created during a previous self-update.

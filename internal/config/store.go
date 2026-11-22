@@ -154,6 +154,10 @@ func (s *Store) loadAll() error {
 			s.cfg.SSH.DefaultShell = "powershell"
 			changed = true
 		}
+		if s.cfg.Proxy.Mode == "" {
+			s.cfg.Proxy.Mode = "auto"
+			changed = true
+		}
 		if changed {
 			if err := atomicWriteJSON(cfgPath, s.cfg); err != nil {
 				return err
